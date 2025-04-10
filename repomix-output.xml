@@ -1,0 +1,366 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+<additional_info>
+
+</additional_info>
+
+</file_summary>
+
+<directory_structure>
+.gitignore
+docker/nginx/conf.d/default.conf
+docker/postgres/init-multiple-dbs.sh
+microservices/reservation-service/Dockerfile
+microservices/reservation-service/requirements.txt
+microservices/reservation-service/wsgi.py
+microservices/room-service/Dockerfile
+microservices/room-service/requirements.txt
+microservices/room-service/wsgi.py
+microservices/user-service/app/models.py
+microservices/user-service/Dockerfile
+microservices/user-service/requirements.txt
+microservices/user-service/wsgi.py
+README.md
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path=".gitignore">
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+*.log
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Docker volumes
+postgres_data/
+prometheus_data/
+grafana_data/
+sonarqube_data/
+</file>
+
+<file path="docker/nginx/conf.d/default.conf">
+server {
+    listen 80;
+    server_name localhost;
+
+    location /api/users {
+        proxy_pass http://user-service:5000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location /api/rooms {
+        proxy_pass http://room-service:5000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location /api/reservations {
+        proxy_pass http://reservation-service:5000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Frontend application would be served here
+    location / {
+        root /usr/share/nginx/html;
+        index index.html;
+        try_files $uri $uri/ /index.html;
+    }
+}
+</file>
+
+<file path="docker/postgres/init-multiple-dbs.sh">
+#!/bin/bash
+
+set -e
+set -u
+
+function create_database() {
+    local database=$1
+    echo "Creating database '$database'"
+    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" <<-EOSQL
+        CREATE DATABASE $database;
+        GRANT ALL PRIVILEGES ON DATABASE $database TO $POSTGRES_USER;
+EOSQL
+}
+
+if [ -n "$POSTGRES_MULTIPLE_DATABASES" ]; then
+    echo "Multiple database creation requested: $POSTGRES_MULTIPLE_DATABASES"
+    for db in $(echo $POSTGRES_MULTIPLE_DATABASES | tr ',' ' '); do
+        create_database $db
+    done
+    echo "Multiple databases created"
+fi
+</file>
+
+<file path="README.md">
+# Meeting Room Reservation System
+
+A microservices-based system for managing meeting room reservations with comprehensive DevOps integration.
+
+## Features
+
+- User authentication with JWT and Google OAuth
+- Meeting room management
+- Reservation booking and conflict detection
+- Role-based access control (Admin/Employee)
+</file>
+
+<file path="microservices/reservation-service/Dockerfile">
+FROM python:3.9-slim
+
+WORKDIR /app
+
+# Install dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY . .
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV FLASK_APP=main.py
+ENV FLASK_ENV=production
+ENV FLASK_DEBUG=0
+
+# Expose port
+EXPOSE 5000
+
+# Run the application
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "main:app"]
+</file>
+
+<file path="microservices/reservation-service/requirements.txt">
+flask==2.2.3
+flask-sqlalchemy==3.0.3
+flask-migrate==4.0.4
+flask-jwt-extended==4.5.2
+psycopg2-binary==2.9.6
+kafka-python==2.0.2
+requests==2.28.2
+gunicorn==20.1.0
+prometheus-flask-exporter==0.22.3
+</file>
+
+<file path="microservices/reservation-service/wsgi.py">
+from app import create_app
+from app.utils import start_kafka_consumers
+
+app = create_app()
+
+# Start Kafka consumers for handling room and user events
+start_kafka_consumers()
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)
+</file>
+
+<file path="microservices/room-service/Dockerfile">
+FROM python:3.9-slim
+
+WORKDIR /app
+
+# Install dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY . .
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV FLASK_APP=main.py
+ENV FLASK_ENV=production
+ENV FLASK_DEBUG=0
+
+# Expose port
+EXPOSE 5000
+
+# Run the application
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "main:app"]
+</file>
+
+<file path="microservices/room-service/requirements.txt">
+flask==2.2.3
+flask-sqlalchemy==3.0.3
+flask-migrate==4.0.4
+flask-jwt-extended==4.5.2
+psycopg2-binary==2.9.6
+kafka-python==2.0.2
+requests==2.28.2
+gunicorn==20.1.0
+prometheus-flask-exporter==0.22.3
+</file>
+
+<file path="microservices/room-service/wsgi.py">
+from app import create_app
+from app.utils import init_kafka_consumers
+
+app = create_app()
+init_kafka_consumers()
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)
+</file>
+
+<file path="microservices/user-service/Dockerfile">
+FROM python:3.9-slim
+
+WORKDIR /app
+
+# Install dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY . .
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV FLASK_APP=main.py
+ENV FLASK_ENV=production
+ENV FLASK_DEBUG=0
+
+# Expose port
+EXPOSE 5000
+
+# Run the application
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "main:app"]
+</file>
+
+<file path="microservices/user-service/requirements.txt">
+flask==2.2.3
+flask-sqlalchemy==3.0.3
+flask-migrate==4.0.4
+flask-jwt-extended==4.5.2
+psycopg2-binary==2.9.6
+kafka-python==2.0.2
+requests==2.28.2
+gunicorn==20.1.0
+prometheus-flask-exporter==0.22.3
+</file>
+
+<file path="microservices/user-service/wsgi.py">
+from app import create_app
+
+app = create_app()
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)
+</file>
+
+<file path="microservices/user-service/app/models.py">
+from flask_sqlalchemy import SQLAlchemy
+from werkzeug.security import generate_password_hash, check_password_hash
+from datetime import datetime
+import enum
+
+db = SQLAlchemy()
+
+class RoleEnum(enum.Enum):
+    ADMIN = "admin"
+    EMPLOYEE = "employee"
+    VISITOR = "visitor"
+
+class User(db.Model):
+    __tablename__ = 'users'
+
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    password_hash = db.Column(db.String(255), nullable=True)
+    first_name = db.Column(db.String(100), nullable=False)
+    last_name = db.Column(db.String(100), nullable=False)
+    role = db.Column(db.Enum(RoleEnum), default=RoleEnum.EMPLOYEE, nullable=False)
+    department = db.Column(db.String(100), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    # OAuth related fields
+    oauth_provider = db.Column(db.String(50), nullable=True)
+    oauth_id = db.Column(db.String(255), nullable=True)
+    
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
+        
+    def check_password(self, password):
+        return check_password_hash(self.password_hash, password)
+    
+    @property
+    def is_admin(self):
+        return self.role == RoleEnum.ADMIN
+    
+    @property
+    def is_employee(self):
+        return self.role == RoleEnum.EMPLOYEE
+    
+    @property
+    def is_visitor(self):
+        return self.role == RoleEnum.VISITOR
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'email': self.email,
+            'first_name': self.first_name,
+            'last_name': self.last_name,
+            'role': self.role.value,
+            'department': self.department,
+            'created_at': self.created_at.isoformat(),
+            'updated_at': self.updated_at.isoformat()
+        }
+</file>
+
+</files>

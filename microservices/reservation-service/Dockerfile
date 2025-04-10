@@ -10,13 +10,17 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Set environment variables
-ENV PYTHONUNBUFFERED=1
-ENV FLASK_APP=main.py
-ENV FLASK_ENV=production
-ENV FLASK_DEBUG=0
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    FLASK_APP=app \
+    FLASK_ENV=production
 
 # Expose port
 EXPOSE 5000
 
+# Create non-root user for security
+RUN adduser --disabled-password --gecos '' appuser
+USER appuser
+
 # Run the application
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "main:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "wsgi:app"]
