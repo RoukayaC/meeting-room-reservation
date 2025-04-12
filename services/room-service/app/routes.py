@@ -79,6 +79,27 @@ def get_rooms():
     rooms = query.all()
     return jsonify([room.to_dict() for room in rooms]), 200
 
+
+@room_bp.route('/auth/validate', methods=['GET'])
+def validate_token():
+    """Proxy token validation via user service"""
+    auth_header = request.headers.get('Authorization')
+    if not auth_header or not auth_header.startswith('Bearer '):
+        return jsonify({'error': 'Missing or invalid Authorization header'}), 401
+
+    try:
+        response = requests.get(
+            f"{current_app.config['USER_SERVICE_URL']}/api/auth/validate",
+            headers={'Authorization': auth_header}
+        )
+        return jsonify(response.json()), response.status_code
+    except requests.RequestException:
+        current_app.logger.error("Failed to validate token via user service")
+        return jsonify({'error': 'Token validation service unavailable'}), 503
+
+
+
+
 @room_bp.route('/<int:room_id>', methods=['GET'])
 def get_room(room_id):
     """Get a specific room"""

@@ -97,6 +97,30 @@ def google_auth():
     oauth_url = f"https://accounts.google.com/o/oauth2/auth?{urlencode(params)}"
     return jsonify({'auth_url': oauth_url}), 200
 
+
+@auth_bp.route('/validate', methods=['GET'])
+def validate():
+    """Validate token and return user info"""
+    token = None
+    if 'Authorization' in request.headers:
+        auth_header = request.headers['Authorization']
+        if auth_header.startswith('Bearer '):
+            token = auth_header.split(' ')[1]
+
+    if not token:
+        return jsonify({'error': 'Token required'}), 401
+
+    try:
+        data = jwt.decode(token, current_app.config['SECRET_KEY'], algorithms=['HS256'])
+        user = User.query.get(data['user_id'])
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+        return jsonify(user.to_dict()), 200
+    except jwt.ExpiredSignatureError:
+        return jsonify({'error': 'Token expired'}), 401
+    except jwt.InvalidTokenError:
+        return jsonify({'error': 'Invalid token'}), 401
+
 @auth_bp.route('/google/callback', methods=['POST'])
 def google_callback():
     """Handle Google OAuth callback"""
