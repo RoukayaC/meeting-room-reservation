@@ -18,3 +18,5 @@ postgres_data/
 prometheus_data/
 grafana_data/
 sonarqube_data/
+
+repomix-output.*
