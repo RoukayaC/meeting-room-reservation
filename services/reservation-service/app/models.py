@@ -12,7 +12,7 @@ class ReservationStatus(enum.Enum):
 
 class Reservation(db.Model):
     __tablename__ = 'reservations'
-
+    
     id = db.Column(db.Integer, primary_key=True)
     room_id = db.Column(db.Integer, nullable=False)
     user_id = db.Column(db.Integer, nullable=False)
@@ -52,7 +52,7 @@ class Reservation(db.Model):
 
 class ReservationAttendee(db.Model):
     __tablename__ = 'reservation_attendees'
-
+    
     id = db.Column(db.Integer, primary_key=True)
     reservation_id = db.Column(db.Integer, db.ForeignKey('reservations.id'), nullable=False)
     user_id = db.Column(db.Integer, nullable=True)  # Nullable for external attendees

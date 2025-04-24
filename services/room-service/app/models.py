@@ -12,7 +12,7 @@ class RoomType(enum.Enum):
 
 class Room(db.Model):
     __tablename__ = 'rooms'
-
+    
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False, unique=True)
     room_type = db.Column(db.Enum(RoomType), default=RoomType.MEETING, nullable=False)
@@ -46,7 +46,7 @@ class RoomUnavailability(db.Model):
     """Track times when rooms are unavailable for reasons other than reservations
     (e.g., maintenance, special events, etc.)"""
     __tablename__ = 'room_unavailability'
-
+    
     id = db.Column(db.Integer, primary_key=True)
     room_id = db.Column(db.Integer, db.ForeignKey('rooms.id'), nullable=False)
     start_time = db.Column(db.DateTime, nullable=False)
