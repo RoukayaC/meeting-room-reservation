@@ -6,10 +6,14 @@ on:
   pull_request:
     branches: [master]
 
+env:
+  DOCKER_REGISTRY: ghcr.io/your-org-name
+
 jobs:
   test:
     name: Unit Tests
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -27,8 +31,50 @@ jobs:
           cd reservation-service && pip install -r requirements.txt && cd ..
           pip install pytest pytest-cov
 
+      - name: Run Database Migrations
+        run: |
+          cd user-service && flask db upgrade && cd ..
+          cd room-service && flask db upgrade && cd ..
+          cd reservation-service && flask db upgrade && cd ..
+
       - name: Run tests
         run: |
           cd user-service && python -m pytest tests/ --cov=app && cd ..
           cd room-service && python -m pytest tests/ --cov=app && cd ..
           cd reservation-service && python -m pytest tests/ --cov=app && cd ..
+
+      - name: Build Docker Images
+        run: |
+          docker build -t ${{ env.DOCKER_REGISTRY }}/user-service:${{ github.sha }} ./user-service
+          docker build -t ${{ env.DOCKER_REGISTRY }}/room-service:${{ github.sha }} ./room-service
+          docker build -t ${{ env.DOCKER_REGISTRY }}/reservation-service:${{ github.sha }} ./reservation-service
+
+      - name: Scan User Service Image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.DOCKER_REGISTRY }}/user-service:${{ github.sha }}
+          format: "table"
+          exit-code: "1"
+          ignore-unfixed: true
+          vuln-type: "os,library"
+          severity: "CRITICAL,HIGH"
+
+      - name: Scan Room Service Image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.DOCKER_REGISTRY }}/room-service:${{ github.sha }}
+          format: "table"
+          exit-code: "1"
+          ignore-unfixed: true
+          vuln-type: "os,library"
+          severity: "CRITICAL,HIGH"
+
+      - name: Scan Reservation Service Image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.DOCKER_REGISTRY }}/reservation-service:${{ github.sha }}
+          format: "table"
+          exit-code: "1"
+          ignore-unfixed: true
+          vuln-type: "os,library"
+          severity: "CRITICAL,HIGH"
