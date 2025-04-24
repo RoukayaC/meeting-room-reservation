@@ -9,11 +9,15 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
+# Copy shared utilities
+COPY ../shared /app/shared
+
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     FLASK_APP=app \
-    FLASK_ENV=production
+    FLASK_ENV=production \
+    PYTHONPATH="${PYTHONPATH}:/app:/app/shared"
 
 # Expose port
 EXPOSE 5000
