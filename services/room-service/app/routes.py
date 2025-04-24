@@ -1,12 +1,18 @@
 from flask import Blueprint, request, jsonify, current_app, g
 from .models import db, Room, RoomType, RoomUnavailability
 import requests
-import jwt
 from datetime import datetime, timedelta
 import json
 from functools import wraps
 
 room_bp = Blueprint('room', __name__, url_prefix='/api/rooms')
+
+def create_error_response(message, error_code):
+    """Helper function to create standardized error responses"""
+    return {
+        "error": message,
+        "code": error_code
+    }
 
 def auth_required(f):
     """Decorator to require authentication by validating token with user service"""
@@ -29,7 +35,7 @@ def auth_required(f):
             )
             
             if response.status_code != 200:
-                return jsonify({'error': 'Invalid token'}), 401
+                return jsonify(create_error_response("Invalid token", "UNAUTHORIZED")), 401
                 
             # Store user info in g
             g.user = response.json()
@@ -79,7 +85,6 @@ def get_rooms():
     rooms = query.all()
     return jsonify([room.to_dict() for room in rooms]), 200
 
-
 @room_bp.route('/auth/validate', methods=['GET'])
 def validate_token():
     """Proxy token validation via user service"""
@@ -97,13 +102,12 @@ def validate_token():
         current_app.logger.error("Failed to validate token via user service")
         return jsonify({'error': 'Token validation service unavailable'}), 503
 
-
-
-
 @room_bp.route('/<int:room_id>', methods=['GET'])
 def get_room(room_id):
     """Get a specific room"""
-    room = Room.query.get_or_404(room_id)
+    room = db.session.get(Room, room_id)
+    if not room:
+        return jsonify({'error': "Room not found"}), 404
     return jsonify(room.to_dict()), 200
 
 @room_bp.route('/', methods=['POST'])
@@ -169,7 +173,10 @@ def create_room():
 @admin_required
 def update_room(room_id):
     """Update a room (admin only)"""
-    room = Room.query.get_or_404(room_id)
+    room = db.session.get(Room, room_id)
+    if not room:
+        return jsonify({'error': "Room not found"}), 404
+        
     data = request.get_json()
     
     # Update fields
@@ -224,7 +231,9 @@ def update_room(room_id):
 @admin_required
 def delete_room(room_id):
     """Delete a room (admin only)"""
-    room = Room.query.get_or_404(room_id)
+    room = db.session.get(Room, room_id)
+    if not room:
+        return jsonify({'error': "Room not found"}), 404
     
     # Check if room has any unavailability records
     if RoomUnavailability.query.filter_by(room_id=room_id).first():
@@ -255,7 +264,10 @@ def delete_room(room_id):
 @admin_required
 def add_unavailability(room_id):
     """Add a period when the room is unavailable (admin only)"""
-    room = Room.query.get_or_404(room_id)
+    room = db.session.get(Room, room_id)
+    if not room:
+        return jsonify({'error': "Room not found"}), 404
+        
     data = request.get_json()
     
     # Validate required fields
@@ -309,7 +321,9 @@ def add_unavailability(room_id):
 @room_bp.route('/<int:room_id>/unavailability', methods=['GET'])
 def get_unavailability(room_id):
     """Get all unavailability periods for a room"""
-    Room.query.get_or_404(room_id)  # Ensure room exists
+    room = db.session.get(Room, room_id)
+    if not room:
+        return jsonify({'error': "Room not found"}), 404
     
     # Get future unavailability periods
     now = datetime.utcnow()
@@ -322,7 +336,10 @@ def get_unavailability(room_id):
 @admin_required
 def delete_unavailability(unavailability_id):
     """Delete an unavailability period (admin only)"""
-    unavailability = RoomUnavailability.query.get_or_404(unavailability_id)
+    unavailability = db.session.get(RoomUnavailability, unavailability_id)
+    if not unavailability:
+        return jsonify({'error': "Unavailability period not found"}), 404
+        
     room_id = unavailability.room_id
     
     db.session.delete(unavailability)
@@ -386,9 +403,10 @@ def check_availability():
         
         if not unavailable:
             # Also check with reservation service
+            reservation_service_url = current_app.config.get('RESERVATION_SERVICE_URL', 'http://reservation-service:5000')
             try:
                 response = requests.get(
-                    f"{current_app.config.get('RESERVATION_SERVICE_URL', 'http://reservation-service:5000')}/api/reservations/check",
+                    f"{reservation_service_url}/api/reservations/check",
                     params={
                         'room_id': room.id,
                         'start_time': start_time_str,

@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify, current_app, g
 from .models import db, User, RoleEnum
-from .auth import auth_required, admin_required
+from .auth import auth_required, admin_required, create_error_response, permission_required
 import json
 
 user_bp = Blueprint('user', __name__, url_prefix='/api/users')
@@ -19,7 +19,7 @@ def get_user(user_id):
     """Get a specific user"""
     # Check permissions (users can only see their own info unless admin)
     if g.user.id != user_id and not g.user.is_admin:
-        return jsonify({'error': 'Unauthorized access'}), 403
+        return jsonify(create_error_response("Unauthorized access", "FORBIDDEN")), 403
         
     user = User.query.get_or_404(user_id)
     return jsonify(user.to_dict()), 200
@@ -35,17 +35,17 @@ def create_user():
     required_fields = ['email', 'first_name', 'last_name', 'role']
     for field in required_fields:
         if field not in data:
-            return jsonify({'error': f"Missing required field: {field}"}), 400
+            return jsonify(create_error_response(f"Missing required field: {field}", "BAD_REQUEST")), 400
     
     # Check if email already exists
     if User.query.filter_by(email=data['email']).first():
-        return jsonify({'error': "Email already registered"}), 409
+        return jsonify(create_error_response("Email already registered", "CONFLICT")), 409
     
     # Create user
     try:
         role = RoleEnum(data['role'])
     except ValueError:
-        return jsonify({'error': f"Invalid role. Must be one of: {[r.value for r in RoleEnum]}"}), 400
+        return jsonify(create_error_response(f"Invalid role. Must be one of: {[r.value for r in RoleEnum]}", "BAD_REQUEST")), 400
     
     user = User(
         email=data['email'],
@@ -86,7 +86,7 @@ def update_user(user_id):
     """Update a user"""
     # Check permissions (users can only update their own info unless admin)
     if g.user.id != user_id and not g.user.is_admin:
-        return jsonify({'error': 'Unauthorized access'}), 403
+        return jsonify(create_error_response("Unauthorized access", "FORBIDDEN")), 403
         
     user = User.query.get_or_404(user_id)
     data = request.get_json()
@@ -104,7 +104,7 @@ def update_user(user_id):
         try:
             user.role = RoleEnum(data['role'])
         except ValueError:
-            return jsonify({'error': f"Invalid role. Must be one of: {[r.value for r in RoleEnum]}"}), 400
+            return jsonify(create_error_response(f"Invalid role. Must be one of: {[r.value for r in RoleEnum]}", "BAD_REQUEST")), 400
     
     # Update password
     if 'password' in data:
@@ -138,8 +138,10 @@ def delete_user(user_id):
     user = User.query.get_or_404(user_id)
     
     # Prevent deleting the last admin
-    if user.is_admin and User.query.filter_by(role=RoleEnum.ADMIN).count() <= 1:
-        return jsonify({'error': "Cannot delete the last admin user"}), 400
+    if user.role == RoleEnum.ADMIN:
+        admin_count = User.query.filter_by(role=RoleEnum.ADMIN).count()
+        if admin_count <= 1:
+            return jsonify(create_error_response("Cannot delete the last admin user", "BAD_REQUEST")), 400
     
     db.session.delete(user)
     db.session.commit()
