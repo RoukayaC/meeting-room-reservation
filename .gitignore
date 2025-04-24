@@ -20,3 +20,5 @@ grafana_data/
 sonarqube_data/
 
 repomix-output.*
+.pytest_cache/
+.venv
