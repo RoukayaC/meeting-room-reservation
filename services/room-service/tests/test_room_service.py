@@ -19,7 +19,7 @@ class RoomServiceTestCase(unittest.TestCase):
             'SQLALCHEMY_DATABASE_URI': 'sqlite:///:memory:',
             'SECRET_KEY': 'test_secret_key',
             'KAFKA_BOOTSTRAP_SERVERS': 'mock-kafka:9092',
-            'SKIP_SAMPLE_DATA': True  # Skip creating sample data
+            'SKIP_SAMPLE_DATA': True  
         })
         self.client = self.app.test_client()
         
@@ -86,7 +86,7 @@ class RoomServiceTestCase(unittest.TestCase):
         # Check response
         self.assertEqual(response.status_code, 200)
         data = json.loads(response.data)
-        self.assertEqual(len(data), 2)  # Two rooms in the database
+        self.assertEqual(len(data), 2)  
         self.assertEqual(data[0]['name'], 'Test Meeting Room')
         self.assertEqual(data[1]['name'], 'Test Conference Room')
 
@@ -254,7 +254,7 @@ class RoomServiceTestCase(unittest.TestCase):
         # Check response
         self.assertEqual(response.status_code, 200)
         data = json.loads(response.data)
-        self.assertEqual(len(data), 2)  # Both rooms should be available
+        self.assertEqual(len(data), 2)  
 
 if __name__ == '__main__':
     unittest.main()

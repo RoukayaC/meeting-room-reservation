@@ -237,7 +237,7 @@ class ReservationServiceTestCase(unittest.TestCase):
         # Check response
         self.assertEqual(response.status_code, 200)
         data = json.loads(response.data)
-        self.assertEqual(len(data), 2)  # Both reservations are for user 1
+        self.assertEqual(len(data), 2)  
 
 if __name__ == '__main__':
     unittest.main()
