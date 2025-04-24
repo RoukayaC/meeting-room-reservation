@@ -9,6 +9,21 @@ import logging
 import threading
 import json
 from datetime import datetime, timedelta
+import sys
+
+# Add the shared directory to the Python path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../shared')))
+
+# Import from shared utils
+try:
+    from opentelemetry_utils import setup_otel, setup_request_hooks
+except ImportError:
+    # Create placeholder functions in case the shared module doesn't exist
+    def setup_otel(app, service_name):
+        return {"request_counter": None, "error_counter": None}
+    
+    def setup_request_hooks(app, request_counter, error_counter):
+        pass
 
 def create_app(config=None):
     app = Flask(__name__)
@@ -47,6 +62,12 @@ def create_app(config=None):
         'client.id': 'reservation_service'
     }
     app.kafka_producer = Producer(kafka_config)
+    
+    # Setup OpenTelemetry if not in testing mode
+    if not config or not config.get('TESTING'):
+        otel_components = setup_otel(app, 'reservation-service')
+        setup_request_hooks(app, otel_components['request_counter'], otel_components['error_counter'])
+        app.logger.info("OpenTelemetry instrumentation set up")
     
     # Create tables if they don't exist (development only)
     with app.app_context():

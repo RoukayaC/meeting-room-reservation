@@ -1,13 +1,29 @@
 from flask import Flask
 from flask_migrate import Migrate
 from flask_cors import CORS
-from .models import db, Room, RoomType, RoomUnavailability
-from .routes import room_bp
 import os
 from confluent_kafka import Producer, Consumer, KafkaError
 import logging
 import threading
 import json
+import sys
+
+# Add the shared directory to the Python path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../shared')))
+
+# Import models
+from .models import db, Room, RoomType, RoomUnavailability
+
+# Import from shared utils (assuming it exists)
+try:
+    from opentelemetry_utils import setup_otel, setup_request_hooks
+except ImportError:
+    # Create placeholder functions in case the shared module doesn't exist
+    def setup_otel(app, service_name):
+        return {"request_counter": None, "error_counter": None}
+    
+    def setup_request_hooks(app, request_counter, error_counter):
+        pass
 
 def create_app(config=None):
     app = Flask(__name__)
@@ -24,7 +40,8 @@ def create_app(config=None):
         SQLALCHEMY_DATABASE_URI=os.environ.get('DATABASE_URI', 'postgresql://postgres:postgres@localhost:5432/room_service'),
         SQLALCHEMY_TRACK_MODIFICATIONS=False,
         KAFKA_BOOTSTRAP_SERVERS=os.environ.get('KAFKA_BOOTSTRAP_SERVERS', 'localhost:9092'),
-        USER_SERVICE_URL=os.environ.get('USER_SERVICE_URL', 'http://user-service:5000')
+        USER_SERVICE_URL=os.environ.get('USER_SERVICE_URL', 'http://user-service:5000'),
+        RESERVATION_SERVICE_URL=os.environ.get('RESERVATION_SERVICE_URL', 'http://reservation-service:5000')
     )
     
     # Override config if provided
@@ -36,6 +53,9 @@ def create_app(config=None):
     db.init_app(app)
     migrate = Migrate(app, db)
     
+    # Import routes here to avoid circular imports
+    from .routes import room_bp
+    
     # Register blueprints
     app.register_blueprint(room_bp)
     
@@ -46,12 +66,18 @@ def create_app(config=None):
     }
     app.kafka_producer = Producer(kafka_config)
     
+    # Setup OpenTelemetry if not in testing mode
+    if not config or not config.get('TESTING'):
+        otel_components = setup_otel(app, 'room-service')
+        setup_request_hooks(app, otel_components['request_counter'], otel_components['error_counter'])
+        app.logger.info("OpenTelemetry instrumentation set up")
+    
     # Create tables if they don't exist (development only)
     with app.app_context():
         db.create_all()
         
-        # Create sample rooms if none exist
-        if Room.query.count() == 0:
+        # Create sample rooms if none exist and not in testing with SKIP_SAMPLE_DATA
+        if Room.query.count() == 0 and not app.config.get('SKIP_SAMPLE_DATA', False):
             sample_rooms = [
                 Room(
                     name="Meeting Room A",
