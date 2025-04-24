@@ -1,3 +1,5 @@
+version: "3"
+
 services:
   # PostgreSQL databases
   user-db:
@@ -13,6 +15,8 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - backend
 
   room-db:
     image: postgres:14-alpine
@@ -27,6 +31,8 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - backend
 
   reservation-db:
     image: postgres:14-alpine
@@ -41,6 +47,8 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - backend
 
   # Kafka and Zookeeper
   zookeeper:
@@ -53,6 +61,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - backend
 
   kafka:
     image: confluentinc/cp-kafka:7.3.0
@@ -72,6 +82,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - backend
 
   # Microservices
   user-service:
@@ -87,8 +99,19 @@ services:
       SECRET_KEY: your_secret_key_here
       OAUTH_CLIENT_ID: your_oauth_client_id_here
       OAUTH_CLIENT_SECRET: your_oauth_client_secret_here
+      OTEL_ENDPOINT: http://tempo:4317
     ports:
       - "5001:5000"
+    networks:
+      - backend
+      - frontend
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   room-service:
     build: ./services/room-service
@@ -102,8 +125,19 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       SECRET_KEY: your_secret_key_here
       USER_SERVICE_URL: http://user-service:5000
+      OTEL_ENDPOINT: http://tempo:4317
     ports:
       - "5002:5000"
+    networks:
+      - backend
+      - frontend
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   reservation-service:
     build: ./services/reservation-service
@@ -118,8 +152,19 @@ services:
       SECRET_KEY: your_secret_key_here
       USER_SERVICE_URL: http://user-service:5000
       ROOM_SERVICE_URL: http://room-service:5000
+      OTEL_ENDPOINT: http://tempo:4317
     ports:
       - "5003:5000"
+    networks:
+      - backend
+      - frontend
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   # API Gateway
   nginx:
@@ -132,8 +177,16 @@ services:
       - user-service
       - room-service
       - reservation-service
+    networks:
+      - frontend
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
-  # Monitoring
+  # Monitoring Stack - LGTM (Loki, Grafana, Tempo, Mimir)
   prometheus:
     image: prom/prometheus:v2.44.0
     volumes:
@@ -144,8 +197,26 @@ services:
       - "--storage.tsdb.path=/prometheus"
       - "--web.console.libraries=/etc/prometheus/console_libraries"
       - "--web.console.templates=/etc/prometheus/consoles"
+      - "--web.enable-lifecycle"
     ports:
       - "9090:9090"
+    networks:
+      - monitoring
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "-q",
+          "--tries=1",
+          "--spider",
+          "http://localhost:9090/-/healthy",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   grafana:
     image: grafana/grafana:10.0.0
@@ -156,19 +227,125 @@ services:
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: admin
       GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_INSTALL_PLUGINS: "grafana-piechart-panel,grafana-clock-panel"
     ports:
       - "3000:3000"
     depends_on:
       - prometheus
+      - loki
+      - tempo
+    networks:
+      - monitoring
+      - frontend
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "-q",
+          "--tries=1",
+          "--spider",
+          "http://localhost:3000/api/health",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
-  # loki:
-  #   image: grafana/loki:2.8.3
-  #   ports:
-  #     - "3100:3100"
-  #   command: -config.file=/etc/loki/local-config.yaml
-  #   volumes:
-  #     - ./loki/config.yaml:/etc/loki/local-config.yaml
-  #     - loki-data:/loki
+  loki:
+    image: grafana/loki:2.8.3
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/config.yaml
+    volumes:
+      - ./loki/config.yaml:/etc/loki/config.yaml
+      - loki-data:/loki
+    networks:
+      - monitoring
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "-q",
+          "--tries=1",
+          "--spider",
+          "http://localhost:3100/ready",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  tempo:
+    image: grafana/tempo:2.2.0
+    command: ["-config.file=/etc/tempo/config.yaml"]
+    volumes:
+      - ./tempo/config.yaml:/etc/tempo/config.yaml
+      - tempo-data:/tmp/tempo
+    ports:
+      - "3200:3200" # tempo-query
+      - "4317:4317" # OTLP gRPC
+      - "4318:4318" # OTLP HTTP
+    networks:
+      - monitoring
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "-q",
+          "--tries=1",
+          "--spider",
+          "http://localhost:3200/status",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  promtail:
+    image: grafana/promtail:2.8.3
+    volumes:
+      - ./promtail/config.yaml:/etc/promtail/config.yaml
+      - /var/log:/var/log
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    command: -config.file=/etc/promtail/config.yaml
+    depends_on:
+      - loki
+    networks:
+      - monitoring
+    restart: unless-stopped
+
+  # SonarQube for code quality
+  sonarqube:
+    image: sonarqube:latest
+    container_name: sonarqube
+    ports:
+      - "9000:9000"
+    environment:
+      - SONAR_JDBC_URL=jdbc:h2:tcp://localhost:9092/sonar
+      - SONAR_JDBC_USERNAME=sonar
+      - SONAR_JDBC_PASSWORD=sonar
+    volumes:
+      - ./sonarqube/data:/opt/sonarqube/data
+      - ./sonarqube/logs:/opt/sonarqube/logs
+      - ./sonarqube/extensions:/opt/sonarqube/extensions
+    networks:
+      - monitoring
+      - frontend
+    restart: unless-stopped
+
+networks:
+  frontend:
+    driver: bridge
+  backend:
+    driver: bridge
+  monitoring:
+    driver: bridge
 
 volumes:
   user-db-data:
@@ -177,3 +354,4 @@ volumes:
   prometheus-data:
   grafana-data:
   loki-data:
+  tempo-data:
