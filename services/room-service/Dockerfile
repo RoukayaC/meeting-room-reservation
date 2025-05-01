@@ -1,30 +1,25 @@
-FROM python:3.9-slim
+FROM python:3.11-slim AS builder
 
 WORKDIR /app
+COPY room-service/requirements.txt .
+RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
 
-# Install dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+FROM python:3.11-slim
+WORKDIR /app
 
-# Copy application code
-COPY . .
+# copy installed deps
+COPY --from=builder /install /usr/local
+# copy app code
+COPY room-service/ ./
+# copy shared utils
+COPY shared/ ./shared
 
-# Copy shared utilities
-COPY ../shared /app/shared
-
-# Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    FLASK_APP=app \
-    FLASK_ENV=production \
-    PYTHONPATH="${PYTHONPATH}:/app:/app/shared"
+    PYTHONPATH="/app:/app/shared"
 
-# Expose port
-EXPOSE 5000
-
-# Create non-root user for security
 RUN adduser --disabled-password --gecos '' appuser
 USER appuser
 
-# Run the application
+EXPOSE 5000
 CMD ["gunicorn", "--bind", "0.0.0.0:5000", "wsgi:app"]
