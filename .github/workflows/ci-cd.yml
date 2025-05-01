@@ -7,12 +7,48 @@ on:
     branches: [master]
 
 env:
-  DOCKER_REGISTRY: ghcr.io/your-org-name
+  DOCKER_HUB_USERNAME: ${{ secrets.DOCKER_HUB_USERNAME }}
+  DOCKER_HUB_NAMESPACE: ${{ secrets.DOCKER_HUB_NAMESPACE || secrets.DOCKER_HUB_USERNAME }}
+  KUBE_NAMESPACE: meeting-room-system
 
 jobs:
+  lint:
+    name: Lint and Code Quality
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.9"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          cd services/user-service && pip install -r requirements.txt && cd ../..
+          cd services/room-service && pip install -r requirements.txt && cd ../..
+          cd services/reservation-service && pip install -r requirements.txt && cd ../..
+          pip install pylint flake8
+
+      - name: Run linting
+        run: |
+          flake8 services/ --count --select=E9,F63,F7,F82 --show-source --statistics
+
+      - name: Set up SonarQube
+        uses: SonarSource/sonarqube-scan-action@master
+        env:
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
   test:
     name: Unit Tests
     runs-on: ubuntu-latest
+    needs: lint
 
     steps:
       - name: Checkout code
@@ -26,35 +62,111 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          cd user-service && pip install -r requirements.txt && cd ..
-          cd room-service && pip install -r requirements.txt && cd ..
-          cd reservation-service && pip install -r requirements.txt && cd ..
+          cd services/user-service && pip install -r requirements.txt && cd ../..
+          cd services/room-service && pip install -r requirements.txt && cd ../..
+          cd services/reservation-service && pip install -r requirements.txt && cd ../..
           pip install pytest pytest-cov
-
-      - name: Run Database Migrations
-        run: |
-          cd user-service && flask db upgrade && cd ..
-          cd room-service && flask db upgrade && cd ..
-          cd reservation-service && flask db upgrade && cd ..
 
       - name: Run tests
         run: |
-          cd user-service && python -m pytest tests/ --cov=app && cd ..
-          cd room-service && python -m pytest tests/ --cov=app && cd ..
-          cd reservation-service && python -m pytest tests/ --cov=app && cd ..
+          cd services/user-service && python -m pytest tests/ --cov=app --cov-report=xml && cd ../..
+          cd services/room-service && python -m pytest tests/ --cov=app --cov-report=xml && cd ../..
+          cd services/reservation-service && python -m pytest tests/ --cov=app --cov-report=xml && cd ../..
 
-      - name: Build Docker Images
-        run: |
-          docker build -t ${{ env.DOCKER_REGISTRY }}/user-service:${{ github.sha }} ./user-service
-          docker build -t ${{ env.DOCKER_REGISTRY }}/room-service:${{ github.sha }} ./room-service
-          docker build -t ${{ env.DOCKER_REGISTRY }}/reservation-service:${{ github.sha }} ./reservation-service
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v3
+        with:
+          directory: ./services/*/coverage.xml
+          fail_ci_if_error: true
 
+  build:
+    name: Build and Push Docker Images
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name != 'pull_request'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_PASSWORD }}
+
+      - name: Extract metadata for Docker
+        id: meta
+        uses: docker/metadata-action@v4
+        with:
+          images: ${{ env.DOCKER_HUB_NAMESPACE }}/meeting-room
+          tags: |
+            type=sha,format=short
+            type=ref,event=branch
+            type=ref,event=tag
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      # Build and push user-service
+      - name: Build and push User Service
+        uses: docker/build-push-action@v4
+        with:
+          context: ./services
+          file: ./services/user-service/Dockerfile
+          push: true
+          tags: |
+            ${{ env.DOCKER_HUB_NAMESPACE }}/user-service:${{ github.sha }}
+            ${{ env.DOCKER_HUB_NAMESPACE }}/user-service:latest
+          cache-from: type=registry,ref=${{ env.DOCKER_HUB_NAMESPACE }}/user-service:buildcache
+          cache-to: type=registry,ref=${{ env.DOCKER_HUB_NAMESPACE }}/user-service:buildcache,mode=max
+
+      # Build and push room-service
+      - name: Build and push Room Service
+        uses: docker/build-push-action@v4
+        with:
+          context: ./services
+          file: ./services/room-service/Dockerfile
+          push: true
+          tags: |
+            ${{ env.DOCKER_HUB_NAMESPACE }}/room-service:${{ github.sha }}
+            ${{ env.DOCKER_HUB_NAMESPACE }}/room-service:latest
+          cache-from: type=registry,ref=${{ env.DOCKER_HUB_NAMESPACE }}/room-service:buildcache
+          cache-to: type=registry,ref=${{ env.DOCKER_HUB_NAMESPACE }}/room-service:buildcache,mode=max
+
+      # Build and push reservation-service
+      - name: Build and push Reservation Service
+        uses: docker/build-push-action@v4
+        with:
+          context: ./services
+          file: ./services/reservation-service/Dockerfile
+          push: true
+          tags: |
+            ${{ env.DOCKER_HUB_NAMESPACE }}/reservation-service:${{ github.sha }}
+            ${{ env.DOCKER_HUB_NAMESPACE }}/reservation-service:latest
+          cache-from: type=registry,ref=${{ env.DOCKER_HUB_NAMESPACE }}/reservation-service:buildcache
+          cache-to: type=registry,ref=${{ env.DOCKER_HUB_NAMESPACE }}/reservation-service:buildcache,mode=max
+
+      # Build and push nginx
+      - name: Build and push NGINX
+        uses: docker/build-push-action@v4
+        with:
+          context: ./services/nginx
+          push: true
+          tags: |
+            ${{ env.DOCKER_HUB_NAMESPACE }}/nginx:${{ github.sha }}
+            ${{ env.DOCKER_HUB_NAMESPACE }}/nginx:latest
+          cache-from: type=registry,ref=${{ env.DOCKER_HUB_NAMESPACE }}/nginx:buildcache
+          cache-to: type=registry,ref=${{ env.DOCKER_HUB_NAMESPACE }}/nginx:buildcache,mode=max
+
+      # Scan all images for vulnerabilities
       - name: Scan User Service Image
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ${{ env.DOCKER_REGISTRY }}/user-service:${{ github.sha }}
+          image-ref: ${{ env.DOCKER_HUB_NAMESPACE }}/user-service:${{ github.sha }}
           format: "table"
-          exit-code: "1"
+          exit-code: 1
           ignore-unfixed: true
           vuln-type: "os,library"
           severity: "CRITICAL,HIGH"
@@ -62,9 +174,9 @@ jobs:
       - name: Scan Room Service Image
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ${{ env.DOCKER_REGISTRY }}/room-service:${{ github.sha }}
+          image-ref: ${{ env.DOCKER_HUB_NAMESPACE }}/room-service:${{ github.sha }}
           format: "table"
-          exit-code: "1"
+          exit-code: 1
           ignore-unfixed: true
           vuln-type: "os,library"
           severity: "CRITICAL,HIGH"
@@ -72,9 +184,55 @@ jobs:
       - name: Scan Reservation Service Image
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ${{ env.DOCKER_REGISTRY }}/reservation-service:${{ github.sha }}
+          image-ref: ${{ env.DOCKER_HUB_NAMESPACE }}/reservation-service:${{ github.sha }}
           format: "table"
-          exit-code: "1"
+          exit-code: 1
           ignore-unfixed: true
           vuln-type: "os,library"
           severity: "CRITICAL,HIGH"
+
+  deploy:
+    name: Deploy to Kubernetes
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/master'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: "v3.12.0"
+
+      - name: Set up kubeconfig
+        uses: azure/k8s-set-context@v3
+        with:
+          kubeconfig: ${{ secrets.KUBE_CONFIG }}
+
+      - name: Update Helm dependencies
+        run: |
+          cd helm
+          helm dependency update ./meeting-room-system
+
+      - name: Deploy with Helm
+        run: |
+          cd helm
+          helm upgrade --install meeting-room-system ./meeting-room-system \
+            --namespace ${{ env.KUBE_NAMESPACE }} \
+            --create-namespace \
+            --set global.imageTag=${{ github.sha }} \
+            --set userService.image.repository=${{ env.DOCKER_HUB_NAMESPACE }}/user-service \
+            --set roomService.image.repository=${{ env.DOCKER_HUB_NAMESPACE }}/room-service \
+            --set reservationService.image.repository=${{ env.DOCKER_HUB_NAMESPACE }}/reservation-service \
+            --set nginx.image.repository=${{ env.DOCKER_HUB_NAMESPACE }}/nginx \
+            --set global.environment=production \
+            --wait
+
+      - name: Verify deployment
+        run: |
+          kubectl rollout status deployment/user-service -n ${{ env.KUBE_NAMESPACE }}
+          kubectl rollout status deployment/room-service -n ${{ env.KUBE_NAMESPACE }}
+          kubectl rollout status deployment/reservation-service -n ${{ env.KUBE_NAMESPACE }}
+          kubectl rollout status deployment/nginx -n ${{ env.KUBE_NAMESPACE }}
