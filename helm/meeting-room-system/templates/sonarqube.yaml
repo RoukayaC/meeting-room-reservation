@@ -1,0 +1,113 @@
+{{- if .Values.sonarqube.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sonarqube
+  labels:
+    app: sonarqube
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sonarqube
+  template:
+    metadata:
+      labels:
+        app: sonarqube
+    spec:
+      containers:
+      - name: sonarqube
+        image: sonarqube:latest
+        ports:
+        - containerPort: 9000
+        env:
+        - name: SONAR_JDBC_URL
+          value: jdbc:postgresql://{{ .Values.database.host }}:{{ .Values.database.port }}/sonar
+        - name: SONAR_JDBC_USERNAME
+          value: {{ .Values.database.user }}
+        - name: SONAR_JDBC_PASSWORD
+          value: {{ .Values.database.password }}
+        volumeMounts:
+        - name: data
+          mountPath: /opt/sonarqube/data
+        - name: logs
+          mountPath: /opt/sonarqube/logs
+        - name: extensions
+          mountPath: /opt/sonarqube/extensions
+        resources:
+          limits:
+            cpu: 1
+            memory: 2Gi
+          requests:
+            cpu: 500m
+            memory: 1Gi
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: sonarqube-data
+      - name: logs
+        emptyDir: {}
+      - name: extensions
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sonarqube
+  labels:
+    app: sonarqube
+spec:
+  selector:
+    app: sonarqube
+  ports:
+  - port: 9000
+    targetPort: 9000
+  type: ClusterIP
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sonarqube-data
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.sonarqube.persistence.size }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: sonarqube-init
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "0"
+    helm.sh/hook-delete-policy: hook-succeeded
+spec:
+  template:
+    spec:
+      containers:
+      - name: sonarqube-init
+        image: curlimages/curl:7.83.1
+        command:
+        - sh
+        - -c
+        - |
+          # Wait for SonarQube to be ready
+          until curl -s http://sonarqube:9000/api/system/status | grep -q '"status":"UP"'; do
+            echo "Waiting for SonarQube to be ready..."
+            sleep 10
+          done
+          
+          # Create project
+          curl -X POST -u admin:admin "http://sonarqube:9000/api/projects/create" \
+            -d "name=meeting-room-reservation" \
+            -d "project=meeting-room-reservation"
+          
+          # Set up quality gates
+          curl -X POST -u admin:admin "http://sonarqube:9000/api/qualitygates/create" \
+            -d "name=meeting-room-quality-gate"
+          
+          echo "SonarQube initialization completed"
+      restartPolicy: OnFailure
+{{- end }}

@@ -1,0 +1,312 @@
+{{- define "meeting-room.service" -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .name }}
+  labels:
+    app: {{ .name }}
+    environment: {{ $.Values.global.environment }}
+spec:
+  replicas: {{ .replicas }}
+  selector:
+    matchLabels:
+      app: {{ .name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .name }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "{{ .prometheusPort }}"
+    spec:
+      containers:
+      - name: {{ .name }}
+        image: "{{ .image.repository }}:{{ $.Values.global.imageTag }}"
+        imagePullPolicy: {{ .image.pullPolicy }}
+        ports:
+        - containerPort: {{ .port }}
+          name: http
+        - containerPort: {{ .prometheusPort }}
+          name: metrics
+        env:
+        - name: DATABASE_URI
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: {{ .name }}-uri
+        - name: KAFKA_BOOTSTRAP_SERVERS
+          value: "{{ $.Release.Name }}-kafka:9092"
+        - name: SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: secret-key
+        {{- if eq .name "user-service" }}
+        - name: OAUTH_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: oauth-credentials
+              key: client-id
+        - name: OAUTH_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: oauth-credentials
+              key: client-secret
+        {{- else if eq .name "room-service" }}
+        - name: USER_SERVICE_URL
+          value: "http://{{ $.Values.userService.name }}:{{ $.Values.userService.port }}"
+        {{- else if eq .name "reservation-service" }}
+        - name: USER_SERVICE_URL
+          value: "http://{{ $.Values.userService.name }}:{{ $.Values.userService.port }}"
+        - name: ROOM_SERVICE_URL
+          value: "http://{{ $.Values.roomService.name }}:{{ $.Values.roomService.port }}"
+        {{- end }}
+        - name: OTLP_ENDPOINT
+          value: "http://{{ $.Release.Name }}-tempo:4317"
+        - name: PROMETHEUS_PORT
+          value: "{{ .prometheusPort }}"
+        - name: ENVIRONMENT
+          value: {{ $.Values.global.environment }}
+        resources:
+          {{- toYaml .resources | nindent 10 }}
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: {{ .port }}
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: {{ .port }}
+          initialDelaySeconds: 15
+          periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .name }}
+  labels:
+    app: {{ .name }}
+spec:
+  selector:
+    app: {{ .name }}
+  ports:
+  - port: {{ .port }}
+    targetPort: {{ .port }}
+    name: http
+  - port: {{ .prometheusPort }}
+    targetPort: {{ .prometheusPort }}
+    name: metrics
+  type: ClusterIP
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ .name }}-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ .name }}
+  minReplicas: {{ .replicas }}
+  maxReplicas: 5
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+{{- end -}}
+
+# User Service
+{{ include "meeting-room.service" .Values.userService }}
+
+# Room Service
+{{ include "meeting-room.service" .Values.roomService }}
+
+# Reservation Service
+{{ include "meeting-room.service" .Values.reservationService }}
+
+# NGINX Deployment
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-config
+data:
+  default.conf: |
+    # Define upstream servers for load balancing
+    upstream user_service {
+        server {{ $.Release.Name }}-{{ .Values.userService.name }}:{{ .Values.userService.port }};
+    }
+    upstream room_service {
+        server {{ $.Release.Name }}-{{ .Values.roomService.name }}:{{ .Values.roomService.port }};
+    }
+    upstream reservation_service {
+        server {{ $.Release.Name }}-{{ .Values.reservationService.name }}:{{ .Values.reservationService.port }};
+    }
+    upstream grafana {
+        server {{ $.Release.Name }}-grafana:3000;
+    }
+    upstream prometheus {
+        server {{ $.Release.Name }}-prometheus:9090;
+    }
+
+    # HTTP server
+    server {
+        listen {{ .Values.nginx.port }};
+        server_name {{ .Values.global.domain }};
+
+        # Add CORS headers
+        add_header 'Access-Control-Allow-Origin' '*' always;
+        add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, OPTIONS' always;
+        add_header 'Access-Control-Allow-Headers' 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization' always;
+
+        # Health check endpoint
+        location /health {
+            return 200 '{"status":"healthy"}';
+            add_header Content-Type application/json;
+        }
+
+        # User Service routes
+        location /api/users {
+            proxy_pass http://user_service;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Request-ID $request_id;
+        }
+        
+        location /api/auth {
+            proxy_pass http://user_service;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Request-ID $request_id;
+        }
+
+        # Room Service routes
+        location /api/rooms {
+            proxy_pass http://room_service;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Request-ID $request_id;
+        }
+
+        # Reservation Service routes
+        location /api/reservations {
+            proxy_pass http://reservation_service;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Request-ID $request_id;
+        }
+
+        # Handle OPTIONS requests for CORS
+        location ~ /api/.* {
+            if ($request_method = 'OPTIONS') {
+                add_header 'Access-Control-Allow-Origin' '*';
+                add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, OPTIONS';
+                add_header 'Access-Control-Allow-Headers' 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization';
+                add_header 'Access-Control-Max-Age' 1728000;
+                add_header 'Content-Type' 'text/plain charset=UTF-8';
+                add_header 'Content-Length' 0;
+                return 204;
+            }
+        }
+        
+        # Grafana access
+        location /grafana/ {
+            proxy_pass http://grafana/;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        }
+        
+        # Prometheus access
+        location /prometheus/ {
+            proxy_pass http://prometheus/;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.nginx.name }}
+  labels:
+    app: {{ .Values.nginx.name }}
+spec:
+  replicas: {{ .Values.nginx.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Values.nginx.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.nginx.name }}
+    spec:
+      containers:
+      - name: {{ .Values.nginx.name }}
+        image: "{{ .Values.nginx.image.repository }}:{{ .Values.nginx.image.tag | default $.Values.global.imageTag }}"
+        ports:
+        - containerPort: {{ .Values.nginx.port }}
+        volumeMounts:
+        - name: nginx-config
+          mountPath: /etc/nginx/conf.d
+        resources:
+          {{- toYaml .Values.nginx.resources | nindent 10 }}
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: {{ .Values.nginx.port }}
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: {{ .Values.nginx.port }}
+          initialDelaySeconds: 10
+          periodSeconds: 10
+      volumes:
+      - name: nginx-config
+        configMap:
+          name: nginx-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.nginx.name }}
+  labels:
+    app: {{ .Values.nginx.name }}
+spec:
+  selector:
+    app: {{ .Values.nginx.name }}
+  ports:
+  - port: {{ .Values.nginx.port }}
+    targetPort: {{ .Values.nginx.port }}
+  type: LoadBalancer
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ .Values.nginx.name }}-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ .Values.nginx.name }}
+  minReplicas: {{ .Values.nginx.replicas }}
+  maxReplicas: 5
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70

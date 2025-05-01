@@ -1,0 +1,144 @@
+# Global configuration
+global:
+  environment: development
+  domain: meetings.example.com
+  imageTag: latest
+
+# Database configuration
+database:
+  host: postgres
+  port: 5432
+  user: postgres
+  password: postgres
+  databases:
+    - user_service
+    - room_service
+    - reservation_service
+    - sonar
+
+# Services configuration - Standardized format
+userService:
+  name: user-service
+  port: 5000
+  prometheusPort: 9464
+  replicas: 2
+  image:
+    repository: user-service
+    pullPolicy: Always
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 200m
+      memory: 256Mi
+  
+roomService:
+  name: room-service
+  port: 5000
+  prometheusPort: 9465
+  replicas: 2
+  image:
+    repository: room-service
+    pullPolicy: Always
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 200m
+      memory: 256Mi
+  
+reservationService:
+  name: reservation-service
+  port: 5000
+  prometheusPort: 9466
+  replicas: 2
+  image:
+    repository: reservation-service
+    pullPolicy: Always
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 200m
+      memory: 256Mi
+
+# NGINX configuration
+nginx:
+  name: nginx
+  port: 80
+  replicas: 2
+  image:
+    repository: nginx
+    tag: alpine
+    pullPolicy: Always
+  resources:
+    limits:
+      cpu: 300m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+# Kafka configuration
+kafka:
+  enabled: true
+  replicas: 3
+  topics:
+    - name: user-events
+      partitions: 3
+      replicationFactor: 3
+    - name: room-events
+      partitions: 3
+      replicationFactor: 3
+    - name: reservation-events
+      partitions: 3
+      replicationFactor: 3
+
+# Monitoring configuration
+monitoring:
+  enabled: true
+  
+  prometheus:
+    enabled: true
+    scrapeInterval: 15s
+    storage:
+      size: 10Gi
+  grafana:
+    enabled: true
+    adminPassword: admin
+    storage:
+      size: 10Gi
+  loki:
+    enabled: true
+    retentionDays: 7
+    storage:
+      size: 10Gi
+  tempo:
+    enabled: true
+    retentionHours: 24
+    storage:
+      size: 10Gi
+  alerting:
+    enabled: true
+    slackWebhook: ""
+    emailTo: ""
+
+# SonarQube configuration
+sonarqube:
+  enabled: true
+  persistence:
+    size: 10Gi
+
+# PostgreSQL dependency configuration
+postgresql:
+  enabled: true
+  auth:
+    username: postgres
+    password: postgres
+    database: postgres
+  primary:
+    initdb:
+      scriptsConfigMap: postgres-init-scripts

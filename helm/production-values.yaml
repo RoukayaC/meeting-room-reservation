@@ -1,0 +1,49 @@
+global:
+  environment: production
+  domain: meetings.example.com
+
+# Set production resources
+services:
+  user:
+    replicas: 3
+    resources:
+      limits:
+        cpu: 1
+        memory: 1Gi
+      requests:
+        cpu: 500m
+        memory: 512Mi
+  
+  room:
+    replicas: 3
+    resources:
+      limits:
+        cpu: 1
+        memory: 1Gi
+      requests:
+        cpu: 500m
+        memory: 512Mi
+  
+  reservation:
+    replicas: 3
+    resources:
+      limits:
+        cpu: 1
+        memory: 1Gi
+      requests:
+        cpu: 500m
+        memory: 512Mi
+
+# Production database settings
+database:
+  host: postgres-prod.database.svc.cluster.local
+  port: 5432
+  user: postgres
+  password: prod-password
+
+# Enable monitoring
+monitoring:
+  enabled: true
+  alerting:
+    slack_webhook: "https://hooks.slack.com/services/your/webhook/url"
+    email_to: "alerts@example.com"

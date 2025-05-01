@@ -1,0 +1,31 @@
+apiVersion: v2
+name: meeting-room-system
+description: A Helm chart for Meeting Room Reservation System
+type: application
+version: 0.1.0
+appVersion: 1.0.0
+dependencies:
+  - name: postgresql
+    version: "12.1.3"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: postgresql.enabled
+  - name: kafka
+    version: "22.1.5"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: kafka.enabled
+  - name: grafana
+    version: "~6.50.0"
+    repository: "https://grafana.github.io/helm-charts"
+    condition: grafana.enabled
+  - name: loki
+    version: "~5.5.0"
+    repository: "https://grafana.github.io/helm-charts"
+    condition: loki.enabled
+  - name: tempo
+    version: "~1.4.0"
+    repository: "https://grafana.github.io/helm-charts"
+    condition: tempo.enabled
+  - name: prometheus
+    version: "~19.6.0"
+    repository: "https://prometheus-community.github.io/helm-charts"
+    condition: prometheus.enabled
