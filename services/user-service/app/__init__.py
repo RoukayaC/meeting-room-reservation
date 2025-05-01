@@ -7,7 +7,7 @@ from .auth import auth_bp
 import os
 from confluent_kafka import Producer
 import logging
-from services.shared.opentelemetry_utils import setup_otel, setup_request_hooks
+from shared.opentelemetry_utils import setup_otel, setup_request_hooks
 
 def create_error_response(message, error_code):
     """Create a standardized error response"""
@@ -57,19 +57,19 @@ def create_app(config=None):
     }
     app.kafka_producer = Producer(kafka_config)
     
-    # Setup OpenTelemetry if not in testing mode
-    if not config or not config.get('TESTING'):
-        try:
-            otel_components = setup_otel(app, 'user-service')
-            setup_request_hooks(app, otel_components['request_counter'], otel_components['error_counter'])
-            app.logger.info("OpenTelemetry instrumentation set up")
-        except Exception as e:
-            app.logger.warning(f"Failed to setup OpenTelemetry: {str(e)}")
+
     
     # Create tables if they don't exist (development only)
     with app.app_context():
         db.create_all()
-        
+            # Setup OpenTelemetry if not in testing mode
+        if not config or not config.get('TESTING'):
+            try:
+                otel_components = setup_otel(app, 'user-service')
+                setup_request_hooks(app, otel_components['request_counter'], otel_components['error_counter'])
+                app.logger.info("OpenTelemetry instrumentation set up")
+            except Exception as e:
+                app.logger.warning(f"Failed to setup OpenTelemetry: {str(e)}")
         # Create default permissions if they don't exist
         if Permission.query.count() == 0:
             permissions = [

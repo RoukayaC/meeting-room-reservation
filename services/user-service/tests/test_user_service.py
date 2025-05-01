@@ -14,7 +14,7 @@ class UserServiceTestCase(unittest.TestCase):
             'SQLALCHEMY_DATABASE_URI': 'sqlite:///:memory:',
             'SECRET_KEY': 'test_secret_key',
             'KAFKA_BOOTSTRAP_SERVERS': 'mock-kafka:9092',
-            'ADMIN_EMAIL': 'admin@test.com',  # Override default admin email
+            'ADMIN_EMAIL': 'admin@test.com', 
             'ADMIN_PASSWORD': 'adminpassword'
         })
         self.client = self.app.test_client()
