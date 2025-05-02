@@ -37,7 +37,7 @@ def create_app(config=None):
     # Load configuration
     app.config.from_mapping(
         SECRET_KEY=os.environ.get('SECRET_KEY', 'dev_key'),
-        SQLALCHEMY_DATABASE_URI=os.environ.get('DATABASE_URI', 'postgresql://postgres:postgres@localhost:5432/reservation_service'),
+        SQLALCHEMY_DATABASE_URI=os.environ.get('DATABASE_URI', 'postgresql://postgres:postgres@db:5432/reservation_service'),
         SQLALCHEMY_TRACK_MODIFICATIONS=False,
         KAFKA_BOOTSTRAP_SERVERS=os.environ.get('KAFKA_BOOTSTRAP_SERVERS', 'localhost:9092'),
         USER_SERVICE_URL=os.environ.get('USER_SERVICE_URL', 'http://user-service:5000'),
