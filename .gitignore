@@ -1,24 +1,112 @@
-
 # Python
 __pycache__/
 *.py[cod]
 *$py.class
-venv/
-.env
-*.log
+*.so
+.Python
+develop-eggs/
+eggs/
+.eggs/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
 
-# IDE
+# Virtual Environments
+venv/
+.venv/
+env/
+ENV/
+virtualenv/
+.python-version
+
+# Logs
+*.log
+logs/
+log/
+
+# Environment variables
+.env
+.env.*
+!.env.example
+.envrc
+
+# IDE and Editors
 .idea/
 .vscode/
 *.swp
 *.swo
+*~
+.*.sw?
+.project
+.pydevproject
+.settings/
+.classpath
+.c9/
+*.launch
+*.sublime-workspace
+*.sublime-project
 
-# Docker volumes
+# Docker and Containers
 postgres_data/
 prometheus_data/
 grafana_data/
 sonarqube_data/
+loki_data/
+tempo_data/
+kafka-data/
+db-data/
+.docker/
+.dockerignore
+docker-compose.override.yml
 
-repomix-output.*
+# Testing and Coverage
 .pytest_cache/
-.venv
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+coverage/
+.tox/
+.nox/
+nosetests.xml
+test-reports.xml
+pylint-report.txt
+flake8-report.txt
+.hypothesis/
+
+# CI/CD
+.github/workflows/.tmp/
+.gitlab-ci-local/
+
+# SonarQube
+.scannerwork/
+repomix-output.*
+sonar-scanner-*
+.sonar/
+
+# Kubernetes
+kubeconfig
+*.kubeconfig
+kube*.yml
+.kube/
+.k8s-secrets/
+
+# Helm
+.helm/charts/
+.helm/releases/
+*.tgz
+
+# Temporary files
+*.tmp
+*~
+.DS_Store
+.cache/
+pip-wheel-metadata/
+
+# Build artifacts
+dist/
+build/
+site/
+*.pkl
+*.joblib
