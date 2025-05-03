@@ -33,12 +33,13 @@ export interface Reservation {
   id: number;
   room_id: number;
   room_name?: string;
+  room?: Room;
   user_id: number;
   start_time: string;
   end_time: string;
   status: string;
   purpose?: string;
-  title?: string;
+  title: string;
   description?: string;
   attendees?: Attendee[];
   attendees_count?: number;
@@ -48,10 +49,18 @@ export interface Reservation {
 
 export interface ReservationFormData {
   room_id: number;
+  title: string;
   start_time: string;
   end_time: string;
+  description?: string;
   purpose?: string;
   attendees?: Attendee[];
+}
+
+export interface ReservationFilters {
+  status?: string;
+  start_date?: string;
+  end_date?: string;
 }
 
 export interface RoomUnavailability {
