@@ -1,238 +1,292 @@
-name: CI/CD Pipeline
+# Full GitHub Actions workflow for Multi-Service CI/CD to GKE with Helm & SonarQube
+name: Build, Test, Scan, and Deploy Multi-Service App to GKE
 
 on:
   push:
-    branches: [master]
-  pull_request:
-    branches: [master]
+    branches: [main, master]
+    paths-ignore:
+      - "**.md"
+      - ".gitignore"
+      - ".gitattributes"
+      # Trigger on changes in services, nginx, helm, or this workflow
+      - '!services/**'
+      - '!nginx/**'
+      - '!helm/**'
+      - '!.github/workflows/build-deploy-multi.yml' # Adjust filename if needed
+  workflow_dispatch: # Allows manual triggering
+    inputs:
+      environment:
+        description: "Environment to deploy to (namespace)"
+        required: true
+        default: "prod"
+        type: choice
+        options:
+          - prod
+          - dev
+          # Add test if you have a test env setup
 
+# --- Global Environment Variables ---
 env:
-  DOCKER_HUB_USERNAME: ${{ secrets.DOCKER_HUB_USERNAME }}
-  DOCKER_HUB_NAMESPACE: ${{ secrets.DOCKER_HUB_NAMESPACE || secrets.DOCKER_HUB_USERNAME }}
-  KUBE_NAMESPACE: meeting-room-system
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  REGION: ${{ secrets.GCP_REGION }} # e.g., europe-west1
+  GAR_LOCATION: ${{ secrets.GCP_REGION }} # GAR location, often same as region
+  GAR_REPOSITORY: meeting-room-repo # Name of your GAR Docker repository
+
+  # Define image names within GAR
+  IMAGE_USER_SERVICE: user-service
+  IMAGE_ROOM_SERVICE: room-service
+  IMAGE_RESERVATION_SERVICE: reservation-service
+  IMAGE_NGINX: meeting-room-nginx # Naming nginx specifically
+
+  GKE_CLUSTER_NAME: ${{ secrets.GKE_CLUSTER_NAME || 'meeting-room-cluster' }} # Adjust default if needed
+  GKE_ZONE: ${{ secrets.GKE_ZONE || format('{0}-b', secrets.GCP_REGION) }} # Example: europe-west1-b, adjust as needed
+  NAMESPACE: ${{ github.event.inputs.environment || 'prod' }} # Target K8s namespace
+
+  HELM_CHART_PATH: ./helm/meeting-room-system # Adjust if your chart path is different
+  HELM_RELEASE_NAME: meeting-room-system # Helm release name
 
 jobs:
-  lint:
-    name: Lint and Code Quality
+  test:
+    name: Run Unit Tests for Services
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0 # Full history for SonarQube
 
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
-          python-version: "3.9"
+          python-version: "3.10" # Or your Flask app's Python version
 
-      - name: Install dependencies
+      - name: Install dependencies for all services
         run: |
           python -m pip install --upgrade pip
-          cd services/user-service && pip install -r requirements.txt && cd ../..
-          cd services/room-service && pip install -r requirements.txt && cd ../..
-          cd services/reservation-service && pip install -r requirements.txt && cd ../..
-          pip install pylint flake8
+          # Install common test tools first
+          pip install pytest pytest-cov
+          # Install service-specific dependencies
+          echo "Installing dependencies for user-service..."
+          pip install -r ./services/user-service/requirements.txt
+          echo "Installing dependencies for room-service..."
+          pip install -r ./services/room-service/requirements.txt
+          echo "Installing dependencies for reservation-service..."
+          pip install -r ./services/reservation-service/requirements.txt
 
-      - name: Run linting
+      - name: Run tests and generate coverage for all services
         run: |
-          flake8 services/ --count --select=E9,F63,F7,F82 --show-source --statistics
+          echo "Running tests for user-service..."
+          (cd ./services/user-service && python -m pytest tests/ --cov=app --cov-report=xml:coverage.xml --junitxml=test-report.xml)
 
-      - name: Set up SonarQube
+          echo "Running tests for room-service..."
+          (cd ./services/room-service && python -m pytest tests/ --cov=app --cov-report=xml:coverage.xml --junitxml=test-report.xml)
+
+          echo "Running tests for reservation-service..."
+          (cd ./services/reservation-service && python -m pytest tests/ --cov=app --cov-report=xml:coverage.xml --junitxml=test-report.xml)
+
+      # Persist all test results and coverage reports
+      - name: Upload test results artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: |
+            ./services/*/test-report.xml
+            ./services/*/coverage.xml
+          if-no-files-found: error # Fail if reports aren't generated
+
+  sonarqube:
+    name: SonarQube Scan
+    runs-on: ubuntu-latest
+    needs: test # Depends on test job completion and artifacts
+    # Only run on pushes to main/master, not PRs unless configured for PR decoration
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # SonarQube needs full history
+
+      - name: Download test results artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: test-results
+          path: ./services # Download results into the services directory structure
+
+      - name: Set up JDK for SonarQube Scanner
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@master
         env:
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          # Assumes sonar-project.properties exists at the root and is configured
+          # for multi-module analysis (pointing reports to ./services/*/{report_name})
 
-  test:
-    name: Unit Tests
+  build-push-deploy:
+    name: Build, Push, and Deploy to ${{ github.event.inputs.environment || 'prod' }}
     runs-on: ubuntu-latest
-    needs: lint
+    needs: sonarqube # Depends on successful Sonar scan
+    # Only run on pushes to main/master
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+
+    permissions:
+      contents: 'read'
+      # id-token: 'write' # Use this if switching to Workload Identity Federation
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.9"
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          cd services/user-service && pip install -r requirements.txt && cd ../..
-          cd services/room-service && pip install -r requirements.txt && cd ../..
-          cd services/reservation-service && pip install -r requirements.txt && cd ../..
-          pip install pytest pytest-cov
-
-      - name: Run tests
-        run: |
-          cd services/user-service && python -m pytest tests/ --cov=app --cov-report=xml && cd ../..
-          cd services/room-service && python -m pytest tests/ --cov=app --cov-report=xml && cd ../..
-          cd services/reservation-service && python -m pytest tests/ --cov=app --cov-report=xml && cd ../..
-
-      - name: Upload coverage reports
-        uses: codecov/codecov-action@v3
-        with:
-          directory: ./services/*/coverage.xml
-          fail_ci_if_error: true
-
-  build:
-    name: Build and Push Docker Images
-    runs-on: ubuntu-latest
-    needs: test
-    if: github.event_name != 'pull_request'
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
+        uses: docker/setup-buildx-action@v3
 
-      - name: Login to Docker Hub
-        uses: docker/login-action@v2
+      - id: 'auth'
+        name: 'Authenticate to Google Cloud (SA Key)'
+        uses: 'google-github-actions/auth@v2'
         with:
-          username: ${{ secrets.DOCKER_HUB_USERNAME }}
-          password: ${{ secrets.DOCKER_HUB_PASSWORD }}
+          credentials_json: '${{ secrets.GCP_SA_KEY }}' # Using Service Account Key
 
-      - name: Extract metadata for Docker
-        id: meta
-        uses: docker/metadata-action@v4
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
         with:
-          images: ${{ env.DOCKER_HUB_NAMESPACE }}/meeting-room
-          tags: |
-            type=sha,format=short
-            type=ref,event=branch
-            type=ref,event=tag
-            type=raw,value=latest,enable={{is_default_branch}}
+          install_components: "gke-gcloud-auth-plugin"
 
-      # Build and push user-service
-      - name: Build and push User Service
-        uses: docker/build-push-action@v4
+      - name: Configure GCP Services
+        run: |
+          echo "Configuring Docker for Artifact Registry..."
+          gcloud auth configure-docker ${{ env.GAR_LOCATION }}-docker.pkg.dev --quiet
+
+          echo "Ensuring Artifact Registry Repository exists..."
+          gcloud artifacts repositories create ${{ env.GAR_REPOSITORY }} \
+            --project=${{ env.PROJECT_ID }} \
+            --repository-format=docker \
+            --location=${{ env.GAR_LOCATION }} \
+            --description="Meeting Room Services Docker repository" || true # Use || true to avoid error if exists
+
+      - name: Set image tag
+        id: set_tags
+        run: |
+          IMAGE_TAG="v$(date +'%Y%m%d')-${GITHUB_SHA::7}"
+          echo "IMAGE_TAG=${IMAGE_TAG}" >> $GITHUB_ENV
+          echo "Using image tag: ${IMAGE_TAG}"
+
+      # Define GAR image path prefix
+      - name: Set GAR image path prefix
+        run: echo "GAR_IMAGE_PATH_PREFIX=${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.GAR_REPOSITORY }}" >> $GITHUB_ENV
+
+      # --- Build and Push Each Service ---
+      - name: Build and Push User Service to GAR
+        uses: docker/build-push-action@v5
         with:
-          context: ./services
+          context: ./services/user-service # Context for this service
           file: ./services/user-service/Dockerfile
           push: true
           tags: |
-            ${{ env.DOCKER_HUB_NAMESPACE }}/user-service:${{ github.sha }}
-            ${{ env.DOCKER_HUB_NAMESPACE }}/user-service:latest
-          cache-from: type=registry,ref=${{ env.DOCKER_HUB_NAMESPACE }}/user-service:buildcache
-          cache-to: type=registry,ref=${{ env.DOCKER_HUB_NAMESPACE }}/user-service:buildcache,mode=max
+            ${{ env.GAR_IMAGE_PATH_PREFIX }}/${{ env.IMAGE_USER_SERVICE }}:${{ env.IMAGE_TAG }}
+            ${{ env.GAR_IMAGE_PATH_PREFIX }}/${{ env.IMAGE_USER_SERVICE }}:latest-${{ env.NAMESPACE }}
+          # Add shared layer context if needed and Dockerfile supports it
+          # context: . # Build from root if Dockerfile needs shared/
+          # file: ./services/user-service/Dockerfile
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-      # Build and push room-service
-      - name: Build and push Room Service
-        uses: docker/build-push-action@v4
+      - name: Build and Push Room Service to GAR
+        uses: docker/build-push-action@v5
         with:
-          context: ./services
+          context: ./services/room-service
           file: ./services/room-service/Dockerfile
           push: true
           tags: |
-            ${{ env.DOCKER_HUB_NAMESPACE }}/room-service:${{ github.sha }}
-            ${{ env.DOCKER_HUB_NAMESPACE }}/room-service:latest
-          cache-from: type=registry,ref=${{ env.DOCKER_HUB_NAMESPACE }}/room-service:buildcache
-          cache-to: type=registry,ref=${{ env.DOCKER_HUB_NAMESPACE }}/room-service:buildcache,mode=max
+            ${{ env.GAR_IMAGE_PATH_PREFIX }}/${{ env.IMAGE_ROOM_SERVICE }}:${{ env.IMAGE_TAG }}
+            ${{ env.GAR_IMAGE_PATH_PREFIX }}/${{ env.IMAGE_ROOM_SERVICE }}:latest-${{ env.NAMESPACE }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-      # Build and push reservation-service
-      - name: Build and push Reservation Service
-        uses: docker/build-push-action@v4
+      - name: Build and Push Reservation Service to GAR
+        uses: docker/build-push-action@v5
         with:
-          context: ./services
+          context: ./services/reservation-service
           file: ./services/reservation-service/Dockerfile
           push: true
           tags: |
-            ${{ env.DOCKER_HUB_NAMESPACE }}/reservation-service:${{ github.sha }}
-            ${{ env.DOCKER_HUB_NAMESPACE }}/reservation-service:latest
-          cache-from: type=registry,ref=${{ env.DOCKER_HUB_NAMESPACE }}/reservation-service:buildcache
-          cache-to: type=registry,ref=${{ env.DOCKER_HUB_NAMESPACE }}/reservation-service:buildcache,mode=max
+            ${{ env.GAR_IMAGE_PATH_PREFIX }}/${{ env.IMAGE_RESERVATION_SERVICE }}:${{ env.IMAGE_TAG }}
+            ${{ env.GAR_IMAGE_PATH_PREFIX }}/${{ env.IMAGE_RESERVATION_SERVICE }}:latest-${{ env.NAMESPACE }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-      # Build and push nginx
-      - name: Build and push NGINX
-        uses: docker/build-push-action@v4
+      - name: Build and Push Nginx to GAR
+        uses: docker/build-push-action@v5
         with:
-          context: ./services/nginx
+          context: ./nginx # Context for nginx
+          file: ./nginx/Dockerfile # Assuming Dockerfile exists here
           push: true
           tags: |
-            ${{ env.DOCKER_HUB_NAMESPACE }}/nginx:${{ github.sha }}
-            ${{ env.DOCKER_HUB_NAMESPACE }}/nginx:latest
-          cache-from: type=registry,ref=${{ env.DOCKER_HUB_NAMESPACE }}/nginx:buildcache
-          cache-to: type=registry,ref=${{ env.DOCKER_HUB_NAMESPACE }}/nginx:buildcache,mode=max
+            ${{ env.GAR_IMAGE_PATH_PREFIX }}/${{ env.IMAGE_NGINX }}:${{ env.IMAGE_TAG }}
+            ${{ env.GAR_IMAGE_PATH_PREFIX }}/${{ env.IMAGE_NGINX }}:latest-${{ env.NAMESPACE }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-      # Scan all images for vulnerabilities
-      - name: Scan User Service Image
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: ${{ env.DOCKER_HUB_NAMESPACE }}/user-service:${{ github.sha }}
-          format: "table"
-          exit-code: 1
-          ignore-unfixed: true
-          vuln-type: "os,library"
-          severity: "CRITICAL,HIGH"
-
-      - name: Scan Room Service Image
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: ${{ env.DOCKER_HUB_NAMESPACE }}/room-service:${{ github.sha }}
-          format: "table"
-          exit-code: 1
-          ignore-unfixed: true
-          vuln-type: "os,library"
-          severity: "CRITICAL,HIGH"
-
-      - name: Scan Reservation Service Image
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: ${{ env.DOCKER_HUB_NAMESPACE }}/reservation-service:${{ github.sha }}
-          format: "table"
-          exit-code: 1
-          ignore-unfixed: true
-          vuln-type: "os,library"
-          severity: "CRITICAL,HIGH"
-
-  deploy:
-    name: Deploy to Kubernetes
-    runs-on: ubuntu-latest
-    needs: build
-    if: github.ref == 'refs/heads/master'
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
+      # --- Deployment ---
       - name: Set up Helm
         uses: azure/setup-helm@v3
         with:
-          version: "v3.12.0"
+          version: 'v3.12.0' # Or latest stable
 
-      - name: Set up kubeconfig
-        uses: azure/k8s-set-context@v3
+      - name: Get GKE Credentials
+        uses: google-github-actions/get-gke-credentials@v2
         with:
-          kubeconfig: ${{ secrets.KUBE_CONFIG }}
+          cluster_name: ${{ env.GKE_CLUSTER_NAME }}
+          location: ${{ env.GKE_ZONE }} # GKE requires zone for regional/zonal clusters
 
-      - name: Update Helm dependencies
+      - name: Deploy to GKE using Helm
         run: |
-          cd helm
-          helm dependency update ./meeting-room-system
+          echo "Deploying image tag ${{ env.IMAGE_TAG }} to namespace ${{ env.NAMESPACE }}..."
 
-      - name: Deploy with Helm
-        run: |
-          cd helm
-          helm upgrade --install meeting-room-system ./meeting-room-system \
-            --namespace ${{ env.KUBE_NAMESPACE }} \
+          # Define image repo URL prefix for Helm
+          GAR_IMAGE_REPO_PREFIX="${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.GAR_REPOSITORY }}"
+          echo "Using image repository prefix: $GAR_IMAGE_REPO_PREFIX"
+
+          # Update Helm dependencies if needed
+          helm dependency update ${{ env.HELM_CHART_PATH }}
+
+          # Deploy using Helm upgrade --install
+          # Adjust --set parameters based on your Helm chart's values.yaml structure
+          helm upgrade --install ${{ env.HELM_RELEASE_NAME }} ${{ env.HELM_CHART_PATH }} \
+            --namespace ${{ env.NAMESPACE }} \
             --create-namespace \
-            --set global.imageTag=${{ github.sha }} \
-            --set userService.image.repository=${{ env.DOCKER_HUB_NAMESPACE }}/user-service \
-            --set roomService.image.repository=${{ env.DOCKER_HUB_NAMESPACE }}/room-service \
-            --set reservationService.image.repository=${{ env.DOCKER_HUB_NAMESPACE }}/reservation-service \
-            --set nginx.image.repository=${{ env.DOCKER_HUB_NAMESPACE }}/nginx \
-            --set global.environment=production \
-            --wait
+            --set global.imageTag=${{ env.IMAGE_TAG }} \
+            --set userService.image.repository=$GAR_IMAGE_REPO_PREFIX/${{ env.IMAGE_USER_SERVICE }} \
+            --set roomService.image.repository=$GAR_IMAGE_REPO_PREFIX/${{ env.IMAGE_ROOM_SERVICE }} \
+            --set reservationService.image.repository=$GAR_IMAGE_REPO_PREFIX/${{ env.IMAGE_RESERVATION_SERVICE }} \
+            --set nginx.image.repository=$GAR_IMAGE_REPO_PREFIX/${{ env.IMAGE_NGINX }} \
+            --set global.environment=${{ env.NAMESPACE }} \
+            # Pass GKE specific values if needed (e.g., disable in-chart DB/Kafka)
+            # -f ${{ env.HELM_CHART_PATH }}/values-gke-${{ env.NAMESPACE }}.yaml \
+            # Pass secrets securely
+            --set database.password=${{ secrets.DB_PASSWORD }} \
+            --set oauth.clientSecret=${{ secrets.OAUTH_CLIENT_SECRET }} \
+            --wait --timeout 10m # Wait for deployment completion
 
-      - name: Verify deployment
+      - name: Verify deployment rollout status
         run: |
-          kubectl rollout status deployment/user-service -n ${{ env.KUBE_NAMESPACE }}
-          kubectl rollout status deployment/room-service -n ${{ env.KUBE_NAMESPACE }}
-          kubectl rollout status deployment/reservation-service -n ${{ env.KUBE_NAMESPACE }}
-          kubectl rollout status deployment/nginx -n ${{ env.KUBE_NAMESPACE }}
+          echo "Verifying deployment rollout status..."
+          # Verify each service deployment defined in your Helm chart
+          kubectl rollout status deployment/user-service -n ${{ env.NAMESPACE }} --timeout=5m
+          kubectl rollout status deployment/room-service -n ${{ env.NAMESPACE }} --timeout=5m
+          kubectl rollout status deployment/reservation-service -n ${{ env.NAMESPACE }} --timeout=5m
+          kubectl rollout status deployment/nginx -n ${{ env.NAMESPACE }} --timeout=5m # Assuming nginx is a deployment
+
+          echo "Deployment completed successfully!"
+          echo "Fetching external IP for service (might take a moment)..."
+          sleep 20 # Give LoadBalancer more time
+          # Adjust service name to the one exposed externally (likely nginx)
+          EXTERNAL_IP=$(kubectl get service nginx -n ${{ env.NAMESPACE }} -o jsonpath="{.status.loadBalancer.ingress[0].ip}")
+          if [ -z "$EXTERNAL_IP" ]; then
+              echo "::warning::Could not get external IP for nginx service automatically. Check 'kubectl get service -n ${{ env.NAMESPACE }}' manually."
+          else
+              echo "Service URL (Nginx): http://${EXTERNAL_IP}"
+          fi
