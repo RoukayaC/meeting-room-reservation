@@ -6,7 +6,7 @@ import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Rooms from "./pages/Rooms";
 import RoomDetail from "./pages/RoomDetails";
-import Reservations from "./pages/Reservations";
+import ReservationsList from "./pages/ReservationsList";
 import ReservationDetails from './pages/ReservationDetails';
 import NewReservation from './pages/NewReservation';
 import EditReservation from './pages/EditReservation';
@@ -27,7 +27,7 @@ function App() {
             <Route path="/rooms" element={<Rooms />} />
             <Route path="/rooms/:id" element={<RoomDetail />} />
 
-            <Route path="/reservations" element={<Reservations />} />
+            <Route path="/reservations" element={<ReservationsList />} />
             <Route path="/reservations/:id" element={<ReservationDetails />} />
             <Route path="/reservations/new" element={<NewReservation />} />
             <Route path="/reservations/edit/:id" element={<EditReservation />} />

@@ -1,5 +1,14 @@
+import axios from 'axios';
 import api from './api';
-import { Room, RoomUnavailability } from '../types/models';
+import { Room, RoomUnavailability, ApiError } from '../types/models';
+
+// Helper function to handle errors
+const handleApiError = (error: unknown, defaultMessage: string): never => {
+  if (axios.isAxiosError(error) && error.response?.data) {
+    throw error.response.data;
+  }
+  throw { error: { message: defaultMessage } } as ApiError;
+};
 
 // Get all rooms with optional filtering
 export const getRooms = async (filters = {}): Promise<Room[]> => {
@@ -7,7 +16,7 @@ export const getRooms = async (filters = {}): Promise<Room[]> => {
     const response = await api.get('/rooms', { params: filters });
     return response.data;
   } catch (error) {
-    throw error.response?.data || { error: { message: 'Failed to fetch rooms' } };
+    handleApiError(error, 'Failed to fetch rooms');
   }
 };
 
@@ -17,7 +26,7 @@ export const getRoomById = async (id: number | string): Promise<Room> => {
     const response = await api.get(`/rooms/${id}`);
     return response.data;
   } catch (error) {
-    throw error.response?.data || { error: { message: 'Failed to fetch room' } };
+    handleApiError(error, 'Failed to fetch room');
   }
 };
 
@@ -27,7 +36,7 @@ export const createRoom = async (roomData: Partial<Room>): Promise<Room> => {
     const response = await api.post('/rooms', roomData);
     return response.data;
   } catch (error) {
-    throw error.response?.data || { error: { message: 'Failed to create room' } };
+    handleApiError(error, 'Failed to create room');
   }
 };
 
@@ -37,7 +46,7 @@ export const updateRoom = async (id: number | string, roomData: Partial<Room>): 
     const response = await api.put(`/rooms/${id}`, roomData);
     return response.data;
   } catch (error) {
-    throw error.response?.data || { error: { message: 'Failed to update room' } };
+    handleApiError(error, 'Failed to update room');
   }
 };
 
@@ -47,7 +56,7 @@ export const deleteRoom = async (id: number | string): Promise<{ message: string
     const response = await api.delete(`/rooms/${id}`);
     return response.data;
   } catch (error) {
-    throw error.response?.data || { error: { message: 'Failed to delete room' } };
+    handleApiError(error, 'Failed to delete room');
   }
 };
 
@@ -62,7 +71,7 @@ export const checkRoomAvailability = async (params: {
     const response = await api.get('/rooms/availability', { params });
     return response.data;
   } catch (error) {
-    throw error.response?.data || { error: { message: 'Failed to check room availability' } };
+    handleApiError(error, 'Failed to check room availability');
   }
 };
 
@@ -72,7 +81,7 @@ export const getRoomUnavailability = async (roomId: number | string): Promise<Ro
     const response = await api.get(`/rooms/${roomId}/unavailability`);
     return response.data;
   } catch (error) {
-    throw error.response?.data || { error: { message: 'Failed to fetch room unavailability' } };
+    handleApiError(error, 'Failed to fetch room unavailability');
   }
 };
 
@@ -85,7 +94,7 @@ export const addRoomUnavailability = async (
     const response = await api.post(`/rooms/${roomId}/unavailability`, unavailabilityData);
     return response.data;
   } catch (error) {
-    throw error.response?.data || { error: { message: 'Failed to add room unavailability' } };
+    handleApiError(error, 'Failed to add room unavailability');
   }
 };
 
@@ -95,6 +104,6 @@ export const deleteRoomUnavailability = async (unavailabilityId: number | string
     const response = await api.delete(`/rooms/unavailability/${unavailabilityId}`);
     return response.data;
   } catch (error) {
-    throw error.response?.data || { error: { message: 'Failed to delete room unavailability' } };
+    handleApiError(error, 'Failed to delete room unavailability');
   }
 };
