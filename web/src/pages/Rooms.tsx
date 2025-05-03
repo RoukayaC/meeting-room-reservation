@@ -1,103 +1,10 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
-import { Plus, Search, Filter } from "lucide-react";
-import { getRooms } from "../services/roomService";
-import RoomCard from "../components/rooms/RoomCard";
-import { useAuth } from "../context/AuthContext";
+import RoomsList from '../components/rooms/RoomsList';
 
 function Rooms() {
-  const { isAdmin } = useAuth();
-  const [filters, setFilters] = useState({
-    capacity: "",
-    type: "",
-    has_projector: null,
-    has_video_conf: null,
-  });
+  return <RoomsList />;
+}
 
-  // Fetch rooms with filters
-  const {
-    data: rooms,
-    isLoading,
-    error,
-  } = useQuery({
-    queryKey: ["rooms", filters],
-    queryFn: () => getRooms(filters),
-  });
-
-  // Handle filter change
-  const handleFilterChange = (e) => {
-    const { name, value, type, checked } = e.target;
-
-    if (type === "checkbox") {
-      setFilters((prev) => ({
-        ...prev,
-        [name]: checked ? true : null, // true when checked, null when unchecked
-      }));
-    } else {
-      setFilters((prev) => ({
-        ...prev,
-        [name]: value,
-      }));
-    }
-  };
-
-  // Clear all filters
-  const clearFilters = () => {
-    setFilters({
-      capacity: "",
-      type: "",
-      has_projector: null,
-      has_video_conf: null,
-    });
-  };
-
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-col md:flex-row gap-4 justify-between md:items-center">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Meeting Rooms</h1>
-          <p className="text-muted-foreground">
-            Available rooms for reservation
-          </p>
-        </div>
-
-        {isAdmin() && (
-          <Link
-            to="/rooms/new"
-            className="inline-flex items-center rounded-md bg-primary px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-foreground"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add Room
-          </Link>
-        )}
-      </div>
-
-      {/* Filters */}
-      <div className="bg-white p-4 shadow rounded-lg">
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="flex-1">
-            <div className="relative">
-              <Search
-                className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
-                size={18}
-              />
-              <input
-                type="text"
-                placeholder="Search rooms..."
-                className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-              />
-            </div>
-          </div>
-
-          <div className="flex items-center gap-4 flex-wrap">
-            <div className="flex items-center space-x-2">
-              <Filter size={18} className="text-gray-400" />
-              <span className="text-sm font-medium">Filters:</span>
-            </div>
-
-            <select
-              name="type"
+export default Rooms;
               value={filters.type}
               onChange={handleFilterChange}
               className="border border-gray-300 rounded-md p-2 text-sm"

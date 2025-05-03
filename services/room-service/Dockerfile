@@ -18,14 +18,6 @@ COPY services/room-service/ ./
 # Copy the shared utilities from the correct path relative to the build context
 COPY services/shared/ ./shared
 
-# Set environment variables
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PYTHONPATH="/app:/app/shared"
-
-# Create a non-root user to run the application
-RUN adduser --disabled-password --gecos '' appuser
-USER appuser
 
 # Expose the port the app runs on
 EXPOSE 5000

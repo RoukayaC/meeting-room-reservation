@@ -1,8 +1,13 @@
 import { Link } from "react-router-dom";
 import { Calendar, Users, Monitor, Eraser } from "lucide-react";
 import { getColorFromString } from "../../lib/utils";
+import { Room } from "../../types/models";
 
-function RoomCard({ room }) {
+interface RoomCardProps {
+  room: Room;
+}
+
+function RoomCard({ room }: RoomCardProps) {
   const {
     id,
     name,
