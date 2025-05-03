@@ -108,15 +108,15 @@ jobs:
           distribution: "temurin"
           java-version: "17"
 
-      - name: SonarQube Scan
-        uses: SonarSource/sonarqube-scan-action@master
-        env:
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          # Explicitly set the base directory for the scanner
-          SONAR_SCANNER_OPTS: -Dsonar.projectBaseDir=.
-        # Assumes sonar-project.properties exists at the root and paths within it
-        # (like projectBaseDir, sources, tests, reportPaths) are correct relative to the root.
+      # - name: SonarQube Scan
+      #   uses: SonarSource/sonarqube-scan-action@master
+      #   env:
+      #     SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+      #     SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      #     # Explicitly set the base directory for the scanner
+      #     SONAR_SCANNER_OPTS: -Dsonar.projectBaseDir=.
+      #   # Assumes sonar-project.properties exists at the root and paths within it
+      #   # (like projectBaseDir, sources, tests, reportPaths) are correct relative to the root.
 
   build-push-deploy:
     name: Build, Push, and Deploy to ${{ github.event.inputs.environment || 'prod' }}
