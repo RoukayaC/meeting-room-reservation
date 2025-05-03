@@ -2,7 +2,7 @@ FROM python:3.11-slim AS builder
 
 WORKDIR /app
 # Copy only the requirements file for this specific service first
-COPY services/room-service/requirements.txt .
+COPY services/user-service/requirements.txt .
 # Install dependencies into a temporary location
 RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
 
@@ -13,7 +13,7 @@ WORKDIR /app
 COPY --from=builder /install /usr/local
 
 # Copy the application code for this specific service
-COPY services/room-service/ ./
+COPY services/user-service/ ./
 
 # Copy the shared utilities from the correct path relative to the build context
 COPY services/shared/ ./shared
