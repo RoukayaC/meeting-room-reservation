@@ -10,14 +10,16 @@ function Navbar() {
     <header className="bg-white border-b border-gray-200 shadow-sm py-4 px-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center md:hidden">
-          {/* Mobile menu button */}
-          <button 
+          {/* Mobile menu button */}          <button 
             type="button"
             className="text-gray-500 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
             aria-label="Toggle menu"
             onClick={() => {
               // Toggle mobile sidebar visibility
-              document.querySelector('.sidebar').classList.toggle('hidden');
+              const sidebar = document.querySelector('.sidebar');
+              if (sidebar) {
+                sidebar.classList.toggle('hidden');
+              }
             }}
           >
             <Menu size={24} />

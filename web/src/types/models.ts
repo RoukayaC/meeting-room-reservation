@@ -21,6 +21,16 @@ export interface Room {
   description?: string;
 }
 
+export type RoomType = 'meeting' | 'conference' | 'office' | 'auditorium';
+
+export interface RoomFilters {
+  capacity?: number;
+  type?: RoomType;
+  has_projector?: boolean;
+  has_video_conf?: boolean;
+  has_whiteboard?: boolean;
+}
+
 export interface Attendee {
   id?: number;
   email: string;

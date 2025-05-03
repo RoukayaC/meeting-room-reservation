@@ -9,11 +9,10 @@ import { useNavigate } from "react-router-dom";
 import { jwtDecode } from "jwt-decode"; // Fix import for jwtDecode
 import { login, validateToken } from "../services/authService";
 
-interface User {
-  id: string;
-  name: string;
-  email: string;
-  role: string;
+// For auth purposes we extend the User type from models.ts to add any auth-specific properties
+import { User as BaseUser } from "../types/models";
+
+interface User extends BaseUser {
   permissions: string[];
 }
 
