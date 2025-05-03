@@ -8,9 +8,9 @@ import Dashboard from "./pages/Dashboard";
 import Rooms from "./pages/Rooms";
 import RoomDetail from "./pages/RoomDetails";
 import ReservationsList from "./pages/ReservationsList";
-import ReservationDetails from './pages/ReservationDetails';
-import NewReservation from './pages/NewReservation';
-import EditReservation from './pages/EditReservation';
+import ReservationDetails from "./pages/ReservationDetails";
+import NewReservation from "./pages/NewReservation";
+import EditReservation from "./pages/EditReservation";
 import Users from "./pages/Users";
 
 function App() {
@@ -29,7 +29,10 @@ function App() {
             <Route path="/rooms/:id" element={<RoomDetail />} />
 
             <Route path="/reservations/new" element={<NewReservation />} />
-            <Route path="/reservations/edit/:id" element={<EditReservation />} />
+            <Route
+              path="/reservations/edit/:id"
+              element={<EditReservation />}
+            />
             <Route path="/reservations/:id" element={<ReservationDetails />} />
             <Route path="/reservations" element={<ReservationsList />} />
 

@@ -1,13 +1,13 @@
-import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { Room, RoomFilters } from '../../types/models';
-import { getRooms } from '../../services/roomService';
-import { Card, CardContent } from '../ui/card';
-import { Button } from '../ui/button';
-import Loading from '../ui/loading';
-import RoomFilter from './RoomFilter';
-import { useAuth } from '../../context/AuthContext';
-import { getRoomFeatures } from '../../lib/utils';
+import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
+import { Room, RoomFilters } from "../../types/models";
+import { getRooms } from "../../services/roomService";
+import { Card, CardContent } from "../ui/card";
+import { Button } from "../ui/button";
+import Loading from "../ui/loading";
+import RoomFilter from "./RoomFilter";
+import { useAuth } from "../../context/AuthContext";
+import { getRoomFeatures } from "../../lib/utils";
 
 const RoomsList = () => {
   const [loading, setLoading] = useState(true);
@@ -24,7 +24,7 @@ const RoomsList = () => {
         setRooms(data);
         setFilteredRooms(data);
       } catch (err) {
-        setError('Failed to fetch rooms');
+        setError("Failed to fetch rooms");
         console.error(err);
       } finally {
         setLoading(false);
@@ -40,7 +40,7 @@ const RoomsList = () => {
       const data = await getRooms(filters);
       setFilteredRooms(data);
     } catch (err) {
-      setError('Failed to filter rooms');
+      setError("Failed to filter rooms");
       console.error(err);
     } finally {
       setLoading(false);
@@ -48,11 +48,7 @@ const RoomsList = () => {
   };
 
   if (error) {
-    return (
-      <div className="p-4 bg-red-100 text-red-700 rounded">
-        {error}
-      </div>
-    );
+    return <div className="p-4 bg-red-100 text-red-700 rounded">{error}</div>;
   }
 
   return (
@@ -83,7 +79,9 @@ const RoomsList = () => {
                       <CardContent className="p-4">
                         <div className="flex flex-col h-full">
                           <div>
-                            <h3 className="font-bold text-lg mb-1">{room.name}</h3>
+                            <h3 className="font-bold text-lg mb-1">
+                              {room.name}
+                            </h3>
                             <p className="text-sm text-gray-500 capitalize">
                               {room.room_type} • Floor {room.floor}
                             </p>
@@ -91,7 +89,9 @@ const RoomsList = () => {
                               Capacity: {room.capacity} people
                             </p>
                             {room.building && (
-                              <p className="text-sm text-gray-500">{room.building}</p>
+                              <p className="text-sm text-gray-500">
+                                {room.building}
+                              </p>
                             )}
                           </div>
 
@@ -109,10 +109,16 @@ const RoomsList = () => {
                           <div className="mt-auto pt-3">
                             <div className="flex justify-between">
                               <Button variant="outline" asChild>
-                                <Link to={`/rooms/${room.id}`}>View Details</Link>
+                                <Link to={`/rooms/${room.id}`}>
+                                  View Details
+                                </Link>
                               </Button>
                               <Button asChild>
-                                <Link to={`/reservations/new?roomId=${room.id}`}>Reserve</Link>
+                                <Link
+                                  to={`/reservations/new?roomId=${room.id}`}
+                                >
+                                  Reserve
+                                </Link>
                               </Button>
                             </div>
                           </div>
@@ -123,7 +129,9 @@ const RoomsList = () => {
                 </div>
               ) : (
                 <div className="text-center p-8 border rounded-md">
-                  <p className="text-lg text-gray-500">No rooms found matching your criteria</p>
+                  <p className="text-lg text-gray-500">
+                    No rooms found matching your criteria
+                  </p>
                   {isAdmin && (
                     <Button className="mt-4" asChild>
                       <Link to="/rooms/new">Add New Room</Link>

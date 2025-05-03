@@ -4,10 +4,10 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Calendar, Clock, Users, MapPin, AlertCircle } from "lucide-react";
 import { format } from "date-fns";
-import { 
-  getReservationById, 
+import {
+  getReservationById,
   updateReservation,
-  cancelReservation 
+  cancelReservation,
 } from "../services/reservationService";
 import { getRoomById } from "../services/roomService";
 import { useAuth } from "../context/AuthContext";
@@ -43,10 +43,7 @@ export default function ReservationDetails() {
   });
 
   // Fetch room details if reservation is loaded
-  const {
-    data: room,
-    isLoading: roomLoading,
-  } = useQuery({
+  const { data: room, isLoading: roomLoading } = useQuery({
     queryKey: ["room", reservation?.room_id],
     queryFn: () => getRoomById(reservation?.room_id),
     enabled: !!reservation?.room_id,
@@ -132,9 +129,7 @@ export default function ReservationDetails() {
     <div className="container max-w-4xl mx-auto py-8">
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-3xl font-bold">
-            Reservation #{id}
-          </h1>
+          <h1 className="text-3xl font-bold">Reservation #{id}</h1>
           <div className="flex items-center gap-2 mt-2">
             <p className="text-muted-foreground">Status:</p>
             {getStatusBadge(reservation.status)}
@@ -143,14 +138,14 @@ export default function ReservationDetails() {
 
         {canModify() && reservation.status !== "CANCELED" && (
           <div className="space-x-2">
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => navigate(`/reservations/edit/${id}`)}
             >
               Edit
             </Button>
-            <Button 
-              variant="destructive" 
+            <Button
+              variant="destructive"
               onClick={() => setIsDeleteDialogOpen(true)}
             >
               Cancel Reservation
@@ -181,7 +176,8 @@ export default function ReservationDetails() {
                 <p>{room?.name || "Loading..."}</p>
                 {room && (
                   <p className="text-sm text-muted-foreground">
-                    {room.floor}{room.building ? `, ${room.building}` : ''}
+                    {room.floor}
+                    {room.building ? `, ${room.building}` : ""}
                   </p>
                 )}
               </div>
@@ -222,9 +218,14 @@ export default function ReservationDetails() {
           <CardContent className="space-y-2">
             {room ? (
               <>
-                <p><span className="font-medium">Capacity:</span> {room.capacity} people</p>
-                <p><span className="font-medium">Type:</span> {room.room_type}</p>
-                
+                <p>
+                  <span className="font-medium">Capacity:</span> {room.capacity}{" "}
+                  people
+                </p>
+                <p>
+                  <span className="font-medium">Type:</span> {room.room_type}
+                </p>
+
                 <div className="mt-4">
                   <p className="font-medium mb-2">Equipment:</p>
                   <ul className="space-y-1 text-sm">
@@ -249,7 +250,8 @@ export default function ReservationDetails() {
           <AlertDialogHeader>
             <AlertDialogTitle>Cancel Reservation</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to cancel this reservation? This action cannot be undone.
+              Are you sure you want to cancel this reservation? This action
+              cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -1,10 +1,18 @@
-import { useState } from 'react';
-import { RoomFilters, RoomType } from '../../types/models';
-import { Input } from '../ui/input';
-import { Button } from '../ui/button';
-import { Label } from '../ui/label';
-import { Checkbox } from '../ui/checkbox';
-import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '../ui/select';
+import { useState } from "react";
+import { RoomFilters, RoomType } from "../../types/models";
+import { Input } from "../ui/input";
+import { Button } from "../ui/button";
+import { Label } from "../ui/label";
+import { Checkbox } from "../ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "../ui/select";
 
 interface RoomFilterProps {
   onFilterChange: (filters: RoomFilters) => void;
@@ -12,18 +20,27 @@ interface RoomFilterProps {
 }
 
 const ROOM_TYPES: { value: RoomType; label: string }[] = [
-  { value: 'meeting', label: 'Meeting Room' },
-  { value: 'conference', label: 'Conference Room' },
-  { value: 'office', label: 'Office' },
-  { value: 'auditorium', label: 'Auditorium' },
+  { value: "meeting", label: "Meeting Room" },
+  { value: "conference", label: "Conference Room" },
+  { value: "office", label: "Office" },
+  { value: "auditorium", label: "Auditorium" },
 ];
 
-const RoomFilter: React.FC<RoomFilterProps> = ({ onFilterChange, className = '' }) => {
+const RoomFilter: React.FC<RoomFilterProps> = ({
+  onFilterChange,
+  className = "",
+}) => {
   const [capacity, setCapacity] = useState<number | undefined>(undefined);
   const [roomType, setRoomType] = useState<RoomType | undefined>(undefined);
-  const [hasProjector, setHasProjector] = useState<boolean | undefined>(undefined);
-  const [hasVideoConf, setHasVideoConf] = useState<boolean | undefined>(undefined);
-  const [hasWhiteboard, setHasWhiteboard] = useState<boolean | undefined>(undefined);
+  const [hasProjector, setHasProjector] = useState<boolean | undefined>(
+    undefined
+  );
+  const [hasVideoConf, setHasVideoConf] = useState<boolean | undefined>(
+    undefined
+  );
+  const [hasWhiteboard, setHasWhiteboard] = useState<boolean | undefined>(
+    undefined
+  );
 
   const handleCapacityChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value ? parseInt(e.target.value, 10) : undefined;
@@ -62,14 +79,14 @@ const RoomFilter: React.FC<RoomFilterProps> = ({ onFilterChange, className = '' 
     setHasProjector(undefined);
     setHasVideoConf(undefined);
     setHasWhiteboard(undefined);
-    
+
     onFilterChange({});
   };
 
   return (
     <div className={`p-4 border rounded-md bg-background ${className}`}>
       <h3 className="text-lg font-medium mb-4">Filter Rooms</h3>
-      
+
       <div className="space-y-4">
         <div>
           <Label htmlFor="capacity">Minimum Capacity</Label>
@@ -78,11 +95,11 @@ const RoomFilter: React.FC<RoomFilterProps> = ({ onFilterChange, className = '' 
             type="number"
             min={1}
             placeholder="Any capacity"
-            value={capacity || ''}
+            value={capacity || ""}
             onChange={handleCapacityChange}
           />
         </div>
-        
+
         <div>
           <Label htmlFor="room-type">Room Type</Label>
           <Select value={roomType} onValueChange={handleTypeChange}>
@@ -101,10 +118,10 @@ const RoomFilter: React.FC<RoomFilterProps> = ({ onFilterChange, className = '' 
             </SelectContent>
           </Select>
         </div>
-        
+
         <div className="space-y-2">
           <Label>Features</Label>
-          
+
           <div className="flex items-center space-x-2">
             <Checkbox
               id="has-projector"
@@ -115,7 +132,7 @@ const RoomFilter: React.FC<RoomFilterProps> = ({ onFilterChange, className = '' 
               Projector
             </Label>
           </div>
-          
+
           <div className="flex items-center space-x-2">
             <Checkbox
               id="has-video-conf"
@@ -126,7 +143,7 @@ const RoomFilter: React.FC<RoomFilterProps> = ({ onFilterChange, className = '' 
               Video Conferencing
             </Label>
           </div>
-          
+
           <div className="flex items-center space-x-2">
             <Checkbox
               id="has-whiteboard"
@@ -138,10 +155,12 @@ const RoomFilter: React.FC<RoomFilterProps> = ({ onFilterChange, className = '' 
             </Label>
           </div>
         </div>
-        
+
         <div className="flex flex-col space-y-2 pt-2">
           <Button onClick={handleFilterApply}>Apply Filters</Button>
-          <Button variant="outline" onClick={handleReset}>Reset Filters</Button>
+          <Button variant="outline" onClick={handleReset}>
+            Reset Filters
+          </Button>
         </div>
       </div>
     </div>

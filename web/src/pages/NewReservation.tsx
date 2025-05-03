@@ -9,7 +9,7 @@ export default function NewReservation() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
+
   // Mutation for creating a new reservation
   const createMutation = useMutation({
     mutationFn: createReservation,
@@ -33,7 +33,9 @@ export default function NewReservation() {
 
   return (
     <div className="container max-w-3xl mx-auto py-8">
-      <h1 className="text-2xl font-bold tracking-tight mb-6">New Reservation</h1>
+      <h1 className="text-2xl font-bold tracking-tight mb-6">
+        New Reservation
+      </h1>
       <ReservationForm onSubmit={handleSubmit} />
     </div>
   );

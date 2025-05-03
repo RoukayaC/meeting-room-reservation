@@ -32,7 +32,8 @@ export default function ReservationsList() {
   // Fetch reservations
   const { data: reservations = [], isLoading } = useQuery({
     queryKey: ["reservations", statusFilter],
-    queryFn: () => getReservations(statusFilter !== "all" ? { status: statusFilter } : {}),
+    queryFn: () =>
+      getReservations(statusFilter !== "all" ? { status: statusFilter } : {}),
   });
 
   // Get status badge
@@ -76,10 +77,7 @@ export default function ReservationsList() {
               <span>Filter by:</span>
             </div>
 
-            <Select
-              value={statusFilter}
-              onValueChange={setStatusFilter}
-            >
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
@@ -128,17 +126,26 @@ export default function ReservationsList() {
                   {reservations.map((reservation) => (
                     <TableRow key={reservation.id}>
                       <TableCell>
-                        <div className="font-medium">{reservation.room_name}</div>
+                        <div className="font-medium">
+                          {reservation.room_name}
+                        </div>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-start gap-1 flex-col">
                           <div className="flex items-center text-sm">
                             <Calendar className="h-3 w-3 mr-1" />
-                            {format(parseISO(reservation.start_time), "MMM dd, yyyy")}
+                            {format(
+                              parseISO(reservation.start_time),
+                              "MMM dd, yyyy"
+                            )}
                           </div>
                           <div className="flex items-center text-xs text-muted-foreground">
                             <Clock className="h-3 w-3 mr-1" />
-                            {format(parseISO(reservation.start_time), "h:mm a")} - {format(parseISO(reservation.end_time), "h:mm a")}
+                            {format(
+                              parseISO(reservation.start_time),
+                              "h:mm a"
+                            )}{" "}
+                            - {format(parseISO(reservation.end_time), "h:mm a")}
                           </div>
                         </div>
                       </TableCell>
@@ -147,7 +154,9 @@ export default function ReservationsList() {
                           {reservation.purpose || "N/A"}
                         </div>
                       </TableCell>
-                      <TableCell>{getStatusBadge(reservation.status)}</TableCell>
+                      <TableCell>
+                        {getStatusBadge(reservation.status)}
+                      </TableCell>
                       <TableCell className="text-right">
                         <Link to={`/reservations/${reservation.id}`}>
                           <Button variant="ghost" size="sm">

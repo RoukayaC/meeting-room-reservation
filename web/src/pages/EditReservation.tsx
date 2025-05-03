@@ -2,7 +2,10 @@ import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { getReservationById, updateReservation } from "../services/reservationService";
+import {
+  getReservationById,
+  updateReservation,
+} from "../services/reservationService";
 import ReservationForm from "../components/reservations/ReservationForm";
 
 export default function EditReservation() {
@@ -10,13 +13,17 @@ export default function EditReservation() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
+
   // Fetch the reservation
-  const { data: reservation, isLoading, error } = useQuery({
+  const {
+    data: reservation,
+    isLoading,
+    error,
+  } = useQuery({
     queryKey: ["reservation", id],
     queryFn: () => getReservationById(id),
   });
-  
+
   // Mutation for updating the reservation
   const updateMutation = useMutation({
     mutationFn: (data) => updateReservation(id, data),

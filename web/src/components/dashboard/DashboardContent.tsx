@@ -1,17 +1,19 @@
-import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
-import { getReservations } from '../../services/reservationService';
-import { getRooms } from '../../services/roomService';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
-import { Button } from '../ui/button';
-import Loading from '../ui/loading';
-import { Reservation, Room } from '../../types/models';
-import { formatDate, formatTime } from '../../lib/utils';
+import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
+import { useAuth } from "../../context/AuthContext";
+import { getReservations } from "../../services/reservationService";
+import { getRooms } from "../../services/roomService";
+import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
+import { Button } from "../ui/button";
+import Loading from "../ui/loading";
+import { Reservation, Room } from "../../types/models";
+import { formatDate, formatTime } from "../../lib/utils";
 
 const Dashboard = () => {
   const [loading, setLoading] = useState(true);
-  const [upcomingReservations, setUpcomingReservations] = useState<Reservation[]>([]);
+  const [upcomingReservations, setUpcomingReservations] = useState<
+    Reservation[]
+  >([]);
   const [availableRooms, setAvailableRooms] = useState<Room[]>([]);
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
@@ -20,49 +22,50 @@ const Dashboard = () => {
     const fetchDashboardData = async () => {
       try {
         setLoading(true);
-        
+
         // Get upcoming reservations
-        const today = new Date().toISOString().split('T')[0];
+        const today = new Date().toISOString().split("T")[0];
         const reservations = await getReservations({
           start_date: today,
         });
-        
+
         // Only show user's reservations if not admin
-        const filteredReservations = user?.role === 'admin' 
-          ? reservations 
-          : reservations.filter(res => res.user_id === user?.id);
-          
+        const filteredReservations =
+          user?.role === "admin"
+            ? reservations
+            : reservations.filter((res) => res.user_id === user?.id);
+
         // Get the 5 most recent upcoming reservations
         const upcoming = filteredReservations
-          .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())
+          .sort(
+            (a, b) =>
+              new Date(a.start_time).getTime() -
+              new Date(b.start_time).getTime()
+          )
           .slice(0, 5);
-        
+
         setUpcomingReservations(upcoming);
-        
+
         // Get available rooms
         const rooms = await getRooms();
         setAvailableRooms(rooms.slice(0, 5)); // Show 5 rooms
       } catch (err) {
-        setError('Failed to load dashboard data');
+        setError("Failed to load dashboard data");
         console.error(err);
       } finally {
         setLoading(false);
       }
     };
-    
+
     fetchDashboardData();
   }, [user]);
 
   if (loading) {
     return <Loading size="large" className="mt-8" />;
   }
-  
+
   if (error) {
-    return (
-      <div className="p-4 bg-red-100 text-red-700 rounded">
-        {error}
-      </div>
-    );
+    return <div className="p-4 bg-red-100 text-red-700 rounded">{error}</div>;
   }
 
   return (
@@ -73,7 +76,7 @@ const Dashboard = () => {
           <Link to="/reservations/new">New Reservation</Link>
         </Button>
       </div>
-      
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Upcoming Reservations */}
         <Card>
@@ -91,7 +94,8 @@ const Dashboard = () => {
                   >
                     <p className="font-medium">{reservation.title}</p>
                     <p className="text-sm text-gray-500">
-                      {formatDate(reservation.start_time)} at {formatTime(reservation.start_time)}
+                      {formatDate(reservation.start_time)} at{" "}
+                      {formatTime(reservation.start_time)}
                     </p>
                     <p className="text-sm text-gray-500">
                       Room: {reservation.room_name || `#${reservation.room_id}`}
@@ -114,7 +118,7 @@ const Dashboard = () => {
             )}
           </CardContent>
         </Card>
-        
+
         {/* Available Rooms */}
         <Card>
           <CardHeader>
@@ -161,8 +165,8 @@ const Dashboard = () => {
           </CardContent>
         </Card>
       </div>
-      
-      {user?.role === 'admin' && (
+
+      {user?.role === "admin" && (
         <Card>
           <CardHeader>
             <CardTitle>Admin Actions</CardTitle>

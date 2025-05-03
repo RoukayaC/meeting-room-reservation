@@ -69,7 +69,9 @@ export default function ReservationForm({ reservation = null, onSubmit }) {
   const timeSlots = [];
   for (let hour = 8; hour < 20; hour++) {
     for (let minute of [0, 30]) {
-      const formattedTime = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+      const formattedTime = `${String(hour).padStart(2, "0")}:${String(
+        minute
+      ).padStart(2, "0")}`;
       timeSlots.push(formattedTime);
     }
   }
@@ -80,10 +82,16 @@ export default function ReservationForm({ reservation = null, onSubmit }) {
     defaultValues: {
       roomId: reservation?.room_id?.toString() || "",
       date: reservation ? parseISO(reservation.start_time) : new Date(),
-      startTime: reservation ? format(parseISO(reservation.start_time), "HH:mm") : "09:00",
-      endTime: reservation ? format(parseISO(reservation.end_time), "HH:mm") : "10:00",
+      startTime: reservation
+        ? format(parseISO(reservation.start_time), "HH:mm")
+        : "09:00",
+      endTime: reservation
+        ? format(parseISO(reservation.end_time), "HH:mm")
+        : "10:00",
       purpose: reservation?.purpose || "",
-      attendees: reservation?.attendees ? reservation.attendees.map(a => a.email).join(", ") : "",
+      attendees: reservation?.attendees
+        ? reservation.attendees.map((a) => a.email).join(", ")
+        : "",
     },
   });
 
@@ -118,10 +126,14 @@ export default function ReservationForm({ reservation = null, onSubmit }) {
         endDateTime.setHours(endHours, endMinutes);
 
         // Skip check if we're editing the same reservation
-        if (reservation && reservation.id && reservation.room_id.toString() === roomId) {
+        if (
+          reservation &&
+          reservation.id &&
+          reservation.room_id.toString() === roomId
+        ) {
           const reservationStart = parseISO(reservation.start_time);
           const reservationEnd = parseISO(reservation.end_time);
-          
+
           if (
             startDateTime.getTime() === reservationStart.getTime() &&
             endDateTime.getTime() === reservationEnd.getTime()
@@ -138,7 +150,7 @@ export default function ReservationForm({ reservation = null, onSubmit }) {
           end_time: endDateTime.toISOString(),
           exclude_reservation_id: reservation?.id,
         });
-        
+
         setIsAvailable(result.available);
         setAvailabilityChecked(true);
       } catch (error) {
@@ -262,7 +274,9 @@ export default function ReservationForm({ reservation = null, onSubmit }) {
                       field.onChange(date);
                       setSelectedDate(date);
                     }}
-                    disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                    disabled={(date) =>
+                      date < new Date(new Date().setHours(0, 0, 0, 0))
+                    }
                     initialFocus
                   />
                 </PopoverContent>
@@ -280,7 +294,10 @@ export default function ReservationForm({ reservation = null, onSubmit }) {
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Start Time</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <Select
+                  onValueChange={field.onChange}
+                  defaultValue={field.value}
+                >
                   <FormControl>
                     <SelectTrigger>
                       <SelectValue placeholder="Start time" />
@@ -305,7 +322,10 @@ export default function ReservationForm({ reservation = null, onSubmit }) {
             render={({ field }) => (
               <FormItem>
                 <FormLabel>End Time</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <Select
+                  onValueChange={field.onChange}
+                  defaultValue={field.value}
+                >
                   <FormControl>
                     <SelectTrigger>
                       <SelectValue placeholder="End time" />
@@ -377,11 +397,7 @@ export default function ReservationForm({ reservation = null, onSubmit }) {
         />
 
         <div className="flex justify-end space-x-2">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => navigate(-1)}
-          >
+          <Button type="button" variant="outline" onClick={() => navigate(-1)}>
             Cancel
           </Button>
           <Button type="submit">

@@ -31,20 +31,20 @@ function Reservations() {
   const queryClient = useQueryClient();
   const { user, isAdmin } = useAuth();
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
-  
+
   // Fetch reservation details
   const { data: reservation, isLoading: isLoadingReservation } = useQuery({
     queryKey: ["reservation", id],
     queryFn: () => getReservationById(id),
   });
-  
+
   // Fetch room details if reservation is loaded
   const { data: room, isLoading: isLoadingRoom } = useQuery({
     queryKey: ["room", reservation?.room_id],
     queryFn: () => getRoomById(reservation.room_id),
     enabled: !!reservation?.room_id,
   });
-  
+
   // Cancel reservation mutation
   const cancelMutation = useMutation({
     mutationFn: cancelReservation,
@@ -53,13 +53,13 @@ function Reservations() {
       queryClient.invalidateQueries({ queryKey: ["reservation", id] });
     },
   });
-  
+
   // Check if user can edit/cancel the reservation
   const canManageReservation = () => {
     if (!reservation || !user) return false;
     return isAdmin() || reservation.user_id === user.id;
   };
-  
+
   // Check if reservation can be cancelled (not in the past and not already cancelled)
   const canCancel = () => {
     if (!reservation) return false;
@@ -70,7 +70,7 @@ function Reservations() {
       new Date(reservation.start_time) > new Date()
     );
   };
-  
+
   if (isLoadingReservation || (reservation && isLoadingRoom)) {
     return (
       <div className="grid place-items-center h-64">
@@ -78,19 +78,24 @@ function Reservations() {
       </div>
     );
   }
-  
+
   if (!reservation) {
     return (
       <div className="bg-white p-10 text-center rounded-lg shadow">
         <h3 className="text-lg font-medium mb-2">Reservation not found</h3>
-        <p className="text-muted-foreground mb-4">This reservation may have been deleted.</p>
-        <Link to="/reservations" className="text-primary hover:text-primary-foreground">
+        <p className="text-muted-foreground mb-4">
+          This reservation may have been deleted.
+        </p>
+        <Link
+          to="/reservations"
+          className="text-primary hover:text-primary-foreground"
+        >
           Back to Reservations
         </Link>
       </div>
     );
   }
-  
+
   // Get status badge classes
   const getStatusBadgeClass = () => {
     switch (reservation.status) {
@@ -106,14 +111,18 @@ function Reservations() {
         return "bg-gray-100 text-gray-800";
     }
   };
-  
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row gap-4 justify-between md:items-center">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">{reservation.title}</h1>
+          <h1 className="text-2xl font-bold tracking-tight">
+            {reservation.title}
+          </h1>
           <div className="flex items-center gap-2 mt-1">
-            <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full capitalize ${getStatusBadgeClass()}`}>
+            <span
+              className={`inline-flex px-2 py-1 text-xs font-medium rounded-full capitalize ${getStatusBadgeClass()}`}
+            >
               {reservation.status}
             </span>
             <span className="text-sm text-muted-foreground">
@@ -121,7 +130,7 @@ function Reservations() {
             </span>
           </div>
         </div>
-        
+
         <div className="flex gap-2">
           {canManageReservation() && reservation.status === "confirmed" && (
             <Link
@@ -132,7 +141,7 @@ function Reservations() {
               Edit
             </Link>
           )}
-          
+
           {canCancel() && (
             <button
               onClick={() => setShowCancelConfirm(true)}
@@ -144,27 +153,31 @@ function Reservations() {
           )}
         </div>
       </div>
-      
+
       {/* Reservation Details */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="md:col-span-2 space-y-6">
           {/* Main Reservation Info */}
           <div className="bg-white p-6 rounded-lg shadow">
-            <h2 className="text-lg font-medium mb-4">Reservation Information</h2>
-            
+            <h2 className="text-lg font-medium mb-4">
+              Reservation Information
+            </h2>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <p className="text-sm text-gray-500">Title</p>
                 <p className="font-medium">{reservation.title}</p>
               </div>
-              
+
               <div>
                 <p className="text-sm text-gray-500">Status</p>
-                <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full capitalize ${getStatusBadgeClass()}`}>
+                <span
+                  className={`inline-flex px-2 py-1 text-xs font-medium rounded-full capitalize ${getStatusBadgeClass()}`}
+                >
                   {reservation.status}
                 </span>
               </div>
-              
+
               <div>
                 <p className="text-sm text-gray-500">Date & Time</p>
                 <div className="flex items-start gap-1">
@@ -173,12 +186,13 @@ function Reservations() {
                     <p>{formatDate(reservation.start_time)}</p>
                     <p className="text-sm text-gray-500 mt-1">
                       <Clock className="h-3 w-3 inline mr-1" />
-                      {formatTime(reservation.start_time)} - {formatTime(reservation.end_time)}
+                      {formatTime(reservation.start_time)} -{" "}
+                      {formatTime(reservation.end_time)}
                     </p>
                   </div>
                 </div>
               </div>
-              
+
               <div>
                 <p className="text-sm text-gray-500">Room</p>
                 <p className="font-medium">
@@ -190,12 +204,12 @@ function Reservations() {
                   </p>
                 )}
               </div>
-              
+
               <div>
                 <p className="text-sm text-gray-500">Created By</p>
                 <p>User #{reservation.user_id}</p>
               </div>
-              
+
               <div>
                 <p className="text-sm text-gray-500">Attendees</p>
                 <div className="flex items-center">
@@ -204,22 +218,24 @@ function Reservations() {
                 </div>
               </div>
             </div>
-            
+
             {reservation.description && (
               <div className="mt-4 pt-4 border-t border-gray-200">
                 <p className="text-sm text-gray-500">Description</p>
-                <p className="mt-1 whitespace-pre-line">{reservation.description}</p>
+                <p className="mt-1 whitespace-pre-line">
+                  {reservation.description}
+                </p>
               </div>
             )}
           </div>
-          
+
           {/* Attendees List */}
           {reservation.attendees && reservation.attendees.length > 0 && (
             <div className="bg-white rounded-lg shadow overflow-hidden">
               <div className="p-6 border-b border-gray-200">
                 <h2 className="text-lg font-medium">Attendees</h2>
               </div>
-              
+
               <ul className="divide-y divide-gray-200">
                 {reservation.attendees.map((attendee) => (
                   <li key={attendee.id} className="p-4">
@@ -247,26 +263,26 @@ function Reservations() {
             </div>
           )}
         </div>
-        
+
         {/* Room Information Sidebar */}
         {room && (
           <div className="bg-white rounded-lg shadow overflow-hidden">
             <div className="p-6 border-b border-gray-200">
               <h2 className="text-lg font-medium">Room Information</h2>
             </div>
-            
+
             <div className="p-6">
               <h3 className="font-medium text-lg mb-2">{room.name}</h3>
               <p className="text-sm text-gray-500 mb-4">
                 {room.building}, {room.floor} Floor
               </p>
-              
+
               <div className="space-y-4">
                 <div>
                   <p className="text-sm text-gray-500">Room Type</p>
                   <p className="capitalize">{room.room_type}</p>
                 </div>
-                
+
                 <div>
                   <p className="text-sm text-gray-500">Capacity</p>
                   <p className="flex items-center">
@@ -274,7 +290,7 @@ function Reservations() {
                     {room.capacity} people
                   </p>
                 </div>
-                
+
                 <div>
                   <p className="text-sm text-gray-500">Features</p>
                   <div className="flex flex-wrap gap-2 mt-1">
@@ -283,13 +299,13 @@ function Reservations() {
                         Projector
                       </span>
                     )}
-                    
+
                     {room.has_video_conf && (
                       <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
                         Video Conference
                       </span>
                     )}
-                    
+
                     {room.has_whiteboard && (
                       <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
                         Whiteboard
@@ -299,7 +315,7 @@ function Reservations() {
                 </div>
               </div>
             </div>
-            
+
             <div className="p-4 bg-gray-50 border-t border-gray-200">
               <Link
                 to={`/rooms/${room.id}`}
@@ -311,14 +327,16 @@ function Reservations() {
           </div>
         )}
       </div>
-      
+
       {/* Cancel Confirmation Modal */}
       {showCancelConfirm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full">
             <h3 className="text-lg font-medium mb-4">Cancel Reservation</h3>
             <p className="mb-4">
-              Are you sure you want to cancel this reservation for <strong>{room?.name || `Room #${reservation.room_id}`}</strong>? This action cannot be undone.
+              Are you sure you want to cancel this reservation for{" "}
+              <strong>{room?.name || `Room #${reservation.room_id}`}</strong>?
+              This action cannot be undone.
             </p>
             <div className="flex justify-end space-x-2">
               <button
