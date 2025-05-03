@@ -49,8 +49,8 @@ services:
   # Microservices
   user-service:
     build:
-      context: ./services
-      dockerfile: user-service/Dockerfile
+      context: ./
+      dockerfile: services/user-service/Dockerfile
     depends_on:
       db:
         condition: service_healthy
@@ -82,8 +82,8 @@ services:
 
   room-service:
     build:
-      context: ./services
-      dockerfile: room-service/Dockerfile
+      context: ./
+      dockerfile: services/room-service/Dockerfile
     depends_on:
       db:
         condition: service_healthy
@@ -113,8 +113,8 @@ services:
 
   reservation-service:
     build:
-      context: ./services
-      dockerfile: reservation-service/Dockerfile
+      context: ./
+      dockerfile: services/reservation-service/Dockerfile
     depends_on:
       db:
         condition: service_healthy

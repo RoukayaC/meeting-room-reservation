@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "@/components/ui/sonner";
 import RequireAuth from "./components/auth/RequireAuth";
+import AdminRoute from "./components/auth/AdminRoute";
 import MainLayout from "./components/layout/MainLayout";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
@@ -27,13 +28,15 @@ function App() {
             <Route path="/rooms" element={<Rooms />} />
             <Route path="/rooms/:id" element={<RoomDetail />} />
 
-            <Route path="/reservations" element={<ReservationsList />} />
-            <Route path="/reservations/:id" element={<ReservationDetails />} />
             <Route path="/reservations/new" element={<NewReservation />} />
             <Route path="/reservations/edit/:id" element={<EditReservation />} />
+            <Route path="/reservations/:id" element={<ReservationDetails />} />
+            <Route path="/reservations" element={<ReservationsList />} />
 
-            {/* Admin-only route */}
-            <Route path="/users" element={<Users />} />
+            {/* Admin-only routes */}
+            <Route element={<AdminRoute />}>
+              <Route path="/users" element={<Users />} />
+            </Route>
           </Route>
         </Route>
 
