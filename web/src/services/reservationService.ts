@@ -1,7 +1,8 @@
 import api from './api';
+import { Reservation, ReservationFormData, ApiError } from '../types/models';
 
 // Get all reservations with optional filtering
-export const getReservations = async (filters = {}) => {
+export const getReservations = async (filters = {}): Promise<Reservation[]> => {
   try {
     const response = await api.get('/reservations', { params: filters });
     return response.data;
@@ -11,7 +12,7 @@ export const getReservations = async (filters = {}) => {
 };
 
 // Get reservation by ID
-export const getReservationById = async (id) => {
+export const getReservationById = async (id: string | number): Promise<Reservation> => {
   try {
     const response = await api.get(`/reservations/${id}`);
     return response.data;
@@ -21,7 +22,7 @@ export const getReservationById = async (id) => {
 };
 
 // Create a new reservation
-export const createReservation = async (reservationData) => {
+export const createReservation = async (reservationData: ReservationFormData): Promise<Reservation> => {
   try {
     const response = await api.post('/reservations', reservationData);
     return response.data;
@@ -31,7 +32,7 @@ export const createReservation = async (reservationData) => {
 };
 
 // Update reservation
-export const updateReservation = async (id, reservationData) => {
+export const updateReservation = async (id: string | number, reservationData: ReservationFormData): Promise<Reservation> => {
   try {
     const response = await api.put(`/reservations/${id}`, reservationData);
     return response.data;
@@ -41,7 +42,7 @@ export const updateReservation = async (id, reservationData) => {
 };
 
 // Cancel reservation
-export const cancelReservation = async (id) => {
+export const cancelReservation = async (id: string | number): Promise<{ message: string }> => {
   try {
     const response = await api.delete(`/reservations/${id}`);
     return response.data;
@@ -51,7 +52,7 @@ export const cancelReservation = async (id) => {
 };
 
 // Get reservations for a user
-export const getUserReservations = async (userId) => {
+export const getUserReservations = async (userId: number): Promise<Reservation[]> => {
   try {
     const response = await api.get(`/reservations/user/${userId}`);
     return response.data;
@@ -61,7 +62,7 @@ export const getUserReservations = async (userId) => {
 };
 
 // Get reservations for a room
-export const getRoomReservations = async (roomId, params = {}) => {
+export const getRoomReservations = async (roomId: number, params = {}): Promise<Reservation[]> => {
   try {
     const response = await api.get(`/reservations/room/${roomId}`, { params });
     return response.data;
@@ -71,7 +72,12 @@ export const getRoomReservations = async (roomId, params = {}) => {
 };
 
 // Check if a room is available at a specific time
-export const checkReservationAvailability = async (params) => {
+export const checkReservationAvailability = async (params: {
+  room_id: number;
+  start_time: string;
+  end_time: string;
+  exclude_reservation_id?: number;
+}): Promise<{ available: boolean }> => {
   try {
     const response = await api.get('/reservations/check', { params });
     return response.data;

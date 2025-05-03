@@ -1,7 +1,8 @@
 import api from './api';
+import { Room, RoomUnavailability } from '../types/models';
 
 // Get all rooms with optional filtering
-export const getRooms = async (filters = {}) => {
+export const getRooms = async (filters = {}): Promise<Room[]> => {
   try {
     const response = await api.get('/rooms', { params: filters });
     return response.data;
@@ -11,7 +12,7 @@ export const getRooms = async (filters = {}) => {
 };
 
 // Get room by ID
-export const getRoomById = async (id) => {
+export const getRoomById = async (id: number | string): Promise<Room> => {
   try {
     const response = await api.get(`/rooms/${id}`);
     return response.data;
@@ -21,7 +22,7 @@ export const getRoomById = async (id) => {
 };
 
 // Create a new room (admin only)
-export const createRoom = async (roomData) => {
+export const createRoom = async (roomData: Partial<Room>): Promise<Room> => {
   try {
     const response = await api.post('/rooms', roomData);
     return response.data;
@@ -31,7 +32,7 @@ export const createRoom = async (roomData) => {
 };
 
 // Update room (admin only)
-export const updateRoom = async (id, roomData) => {
+export const updateRoom = async (id: number | string, roomData: Partial<Room>): Promise<Room> => {
   try {
     const response = await api.put(`/rooms/${id}`, roomData);
     return response.data;
@@ -41,7 +42,7 @@ export const updateRoom = async (id, roomData) => {
 };
 
 // Delete room (admin only)
-export const deleteRoom = async (id) => {
+export const deleteRoom = async (id: number | string): Promise<{ message: string }> => {
   try {
     const response = await api.delete(`/rooms/${id}`);
     return response.data;
@@ -51,7 +52,12 @@ export const deleteRoom = async (id) => {
 };
 
 // Check room availability
-export const checkRoomAvailability = async (params) => {
+export const checkRoomAvailability = async (params: {
+  room_id: number | string;
+  start_time: string;
+  end_time: string;
+  exclude_reservation_id?: number;
+}): Promise<{ available: boolean }> => {
   try {
     const response = await api.get('/rooms/availability', { params });
     return response.data;
@@ -61,7 +67,7 @@ export const checkRoomAvailability = async (params) => {
 };
 
 // Get room unavailability periods
-export const getRoomUnavailability = async (roomId) => {
+export const getRoomUnavailability = async (roomId: number | string): Promise<RoomUnavailability[]> => {
   try {
     const response = await api.get(`/rooms/${roomId}/unavailability`);
     return response.data;
@@ -71,7 +77,10 @@ export const getRoomUnavailability = async (roomId) => {
 };
 
 // Add unavailability period (admin only)
-export const addRoomUnavailability = async (roomId, unavailabilityData) => {
+export const addRoomUnavailability = async (
+  roomId: number | string, 
+  unavailabilityData: Omit<RoomUnavailability, 'id' | 'room_id'>
+): Promise<RoomUnavailability> => {
   try {
     const response = await api.post(`/rooms/${roomId}/unavailability`, unavailabilityData);
     return response.data;
@@ -81,7 +90,7 @@ export const addRoomUnavailability = async (roomId, unavailabilityData) => {
 };
 
 // Delete unavailability period (admin only)
-export const deleteRoomUnavailability = async (unavailabilityId) => {
+export const deleteRoomUnavailability = async (unavailabilityId: number | string): Promise<{ message: string }> => {
   try {
     const response = await api.delete(`/rooms/unavailability/${unavailabilityId}`);
     return response.data;
