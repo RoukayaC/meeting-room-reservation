@@ -9,10 +9,10 @@ on:
       - ".gitignore"
       - ".gitattributes"
       # Trigger on changes in services, nginx, helm, or this workflow
-      - '!services/**'
-      - '!nginx/**'
-      - '!helm/**'
-      - '!.github/workflows/build-deploy-multi.yml' # Adjust filename if needed
+      - "!services/**"
+      - "!nginx/**"
+      - "!helm/**"
+      - "!.github/workflows/build-deploy-multi.yml" # Adjust filename if needed
   workflow_dispatch: # Allows manual triggering
     inputs:
       environment:
@@ -110,22 +110,35 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: test-results
-          path: ./services # Download results into the services directory structure
+          # Download to the root, preserving structure from upload
+          # path: . # Let's try downloading to root first
 
+      # --- START DEBUGGING STEP ---
+      - name: List files for debugging
+        run: |
+          echo "Current directory: $(pwd)"
+          echo "Listing root directory contents:"
+          ls -la
+          echo "Listing services directory contents:"
+          ls -la services/
+          echo "Listing services/user-service directory contents:"
+          ls -la services/user-service/
+          echo "Listing services/user-service/app directory contents:"
+          ls -la services/user-service/app/
+          echo "Listing test report locations:"
+          find . -name 'test-report.xml' -o -name 'coverage.xml'
+      # --- END DEBUGGING STEP ---
       - name: Set up JDK for SonarQube Scanner
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
-          java-version: '17'
+          distribution: "temurin"
+          java-version: "17"
 
       - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@master
         env:
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          # Assumes sonar-project.properties exists at the root and is configured
-          # for multi-module analysis (pointing reports to ./services/*/{report_name})
-
   build-push-deploy:
     name: Build, Push, and Deploy to ${{ github.event.inputs.environment || 'prod' }}
     runs-on: ubuntu-latest
@@ -134,7 +147,7 @@ jobs:
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
 
     permissions:
-      contents: 'read'
+      contents: "read"
       # id-token: 'write' # Use this if switching to Workload Identity Federation
 
     steps:
@@ -144,11 +157,11 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - id: 'auth'
-        name: 'Authenticate to Google Cloud (SA Key)'
-        uses: 'google-github-actions/auth@v2'
+      - id: "auth"
+        name: "Authenticate to Google Cloud (SA Key)"
+        uses: "google-github-actions/auth@v2"
         with:
-          credentials_json: '${{ secrets.GCP_SA_KEY }}' # Using Service Account Key
+          credentials_json: "${{ secrets.GCP_SA_KEY }}" # Using Service Account Key
 
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
@@ -234,7 +247,7 @@ jobs:
       - name: Set up Helm
         uses: azure/setup-helm@v3
         with:
-          version: 'v3.12.0' # Or latest stable
+          version: "v3.12.0" # Or latest stable
 
       - name: Get GKE Credentials
         uses: google-github-actions/get-gke-credentials@v2
