@@ -1,13 +1,31 @@
 import { useState } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Calendar, Edit, Trash2, Users, Clock } from "lucide-react";
-import { getReservationById, cancelReservation } from "../services/reservationService";
-import { getRoomById } from "../services/roomService";
-import { formatDate, formatTime } from "../lib/utils";
+import { Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { format, parseISO } from "date-fns";
+import { Plus, Filter, Calendar, Clock } from "lucide-react";
+import { getReservations } from "../services/reservationService";
 import { useAuth } from "../context/AuthContext";
 
-function ReservationDetail() {
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+
+function Reservations() {
   const { id } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();

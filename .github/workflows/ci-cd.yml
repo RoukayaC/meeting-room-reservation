@@ -1,4 +1,5 @@
 # Full GitHub Actions workflow for Multi-Service CI/CD to GKE with Helm & SonarQube
+# Version 2: Combined Test and Scan Job
 name: Build, Test, Scan, and Deploy Multi-Service App to GKE
 
 on:
@@ -9,10 +10,10 @@ on:
       - ".gitignore"
       - ".gitattributes"
       # Trigger on changes in services, nginx, helm, or this workflow
-      - "!services/**"
-      - "!nginx/**"
-      - "!helm/**"
-      - "!.github/workflows/build-deploy-multi.yml" # Adjust filename if needed
+      - '!services/**'
+      - '!nginx/**'
+      - '!helm/**'
+      - '!.github/workflows/build-deploy-multi.yml' # Adjust filename if needed
   workflow_dispatch: # Allows manual triggering
     inputs:
       environment:
@@ -46,26 +47,26 @@ env:
   HELM_RELEASE_NAME: meeting-room-system # Helm release name
 
 jobs:
-  test:
-    name: Run Unit Tests for Services
+  test-and-scan: # Combined Test and SonarQube Scan Job
+    name: Run Tests and SonarQube Scan
     runs-on: ubuntu-latest
+    # Only run on pushes to main/master, not PRs unless SonarQube is configured for PR decoration
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Full history for SonarQube
+          fetch-depth: 0 # SonarQube needs full history
 
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: "3.10" # Or your Flask app's Python version
 
-      - name: Install dependencies for all services
+      - name: Install dependencies for all services and tests
         run: |
           python -m pip install --upgrade pip
-          # Install common test tools first
-          pip install pytest pytest-cov
-          # Install service-specific dependencies
+          pip install pytest pytest-cov # Install common test tools
           echo "Installing dependencies for user-service..."
           pip install -r ./services/user-service/requirements.txt
           echo "Installing dependencies for room-service..."
@@ -76,6 +77,7 @@ jobs:
       - name: Run tests and generate coverage for all services
         run: |
           echo "Running tests for user-service..."
+          # Generate reports directly into the service directories relative to root
           (cd ./services/user-service && python -m pytest tests/ --cov=app --cov-report=xml:coverage.xml --junitxml=test-report.xml)
 
           echo "Running tests for room-service..."
@@ -84,70 +86,48 @@ jobs:
           echo "Running tests for reservation-service..."
           (cd ./services/reservation-service && python -m pytest tests/ --cov=app --cov-report=xml:coverage.xml --junitxml=test-report.xml)
 
-      # Persist all test results and coverage reports
-      - name: Upload test results artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-results
-          path: |
-            ./services/*/test-report.xml
-            ./services/*/coverage.xml
-          if-no-files-found: error # Fail if reports aren't generated
-
-  sonarqube:
-    name: SonarQube Scan
-    runs-on: ubuntu-latest
-    needs: test # Depends on test job completion and artifacts
-    # Only run on pushes to main/master, not PRs unless configured for PR decoration
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0 # SonarQube needs full history
-
-      - name: Download test results artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: test-results
-          # Download to the root, preserving structure from upload
-          # path: . # Let's try downloading to root first
-
       # --- START DEBUGGING STEP ---
-      - name: List files for debugging
+      - name: List files for debugging before scan
         run: |
-          echo "Current directory: $(pwd)"
-          echo "Listing root directory contents:"
+          echo "Workflow working directory: $(pwd)"
+          echo "--- Root Directory ---"
           ls -la
-          echo "Listing services directory contents:"
-          ls -la services/
-          echo "Listing services/user-service directory contents:"
-          ls -la services/user-service/
-          echo "Listing services/user-service/app directory contents:"
-          ls -la services/user-service/app/
-          echo "Listing test report locations:"
+          echo "--- services/ Directory ---"
+          ls -la services/ || echo "services/ directory not found"
+          echo "--- services/user-service/ Directory ---"
+          ls -la services/user-service/ || echo "services/user-service/ directory not found"
+          echo "--- services/user-service/app Directory ---"
+          ls -la services/user-service/app/ || echo "services/user-service/app/ directory not found"
+          echo "--- Finding Report Files ---"
           find . -name 'test-report.xml' -o -name 'coverage.xml'
+          echo "-------------------------"
       # --- END DEBUGGING STEP ---
+
       - name: Set up JDK for SonarQube Scanner
         uses: actions/setup-java@v4
         with:
-          distribution: "temurin"
-          java-version: "17"
+          distribution: 'temurin'
+          java-version: '17'
 
       - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@master
         env:
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          # Explicitly set the base directory for the scanner
+          SONAR_SCANNER_OPTS: -Dsonar.projectBaseDir=.
+        # Assumes sonar-project.properties exists at the root and paths within it
+        # (like projectBaseDir, sources, tests, reportPaths) are correct relative to the root.
+
   build-push-deploy:
-    name: Build, Push, and Deploy to ${{ github.event.inputs.environment || 'prod' }}
+    name: Build, Push, and Deploy to ${{ env.NAMESPACE }}
     runs-on: ubuntu-latest
-    needs: sonarqube # Depends on successful Sonar scan
+    needs: test-and-scan # Depends on successful test and scan job
     # Only run on pushes to main/master
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
 
     permissions:
-      contents: "read"
+      contents: 'read'
       # id-token: 'write' # Use this if switching to Workload Identity Federation
 
     steps:
@@ -157,11 +137,11 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - id: "auth"
-        name: "Authenticate to Google Cloud (SA Key)"
-        uses: "google-github-actions/auth@v2"
+      - id: 'auth'
+        name: 'Authenticate to Google Cloud (SA Key)'
+        uses: 'google-github-actions/auth@v2'
         with:
-          credentials_json: "${{ secrets.GCP_SA_KEY }}" # Using Service Account Key
+          credentials_json: '${{ secrets.GCP_SA_KEY }}' # Using Service Account Key
 
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
@@ -178,7 +158,7 @@ jobs:
             --project=${{ env.PROJECT_ID }} \
             --repository-format=docker \
             --location=${{ env.GAR_LOCATION }} \
-            --description="Meeting Room Services Docker repository" || true # Use || true to avoid error if exists
+            --description="Meeting Room Services Docker repository" || true
 
       - name: Set image tag
         id: set_tags
@@ -195,23 +175,20 @@ jobs:
       - name: Build and Push User Service to GAR
         uses: docker/build-push-action@v5
         with:
-          context: ./services/user-service # Context for this service
-          file: ./services/user-service/Dockerfile
+          context: . # Build from root context
+          file: ./services/user-service/Dockerfile # Path relative to root
           push: true
           tags: |
             ${{ env.GAR_IMAGE_PATH_PREFIX }}/${{ env.IMAGE_USER_SERVICE }}:${{ env.IMAGE_TAG }}
             ${{ env.GAR_IMAGE_PATH_PREFIX }}/${{ env.IMAGE_USER_SERVICE }}:latest-${{ env.NAMESPACE }}
-          # Add shared layer context if needed and Dockerfile supports it
-          # context: . # Build from root if Dockerfile needs shared/
-          # file: ./services/user-service/Dockerfile
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
       - name: Build and Push Room Service to GAR
         uses: docker/build-push-action@v5
         with:
-          context: ./services/room-service
-          file: ./services/room-service/Dockerfile
+          context: . # Build from root context
+          file: ./services/room-service/Dockerfile # Path relative to root
           push: true
           tags: |
             ${{ env.GAR_IMAGE_PATH_PREFIX }}/${{ env.IMAGE_ROOM_SERVICE }}:${{ env.IMAGE_TAG }}
@@ -222,8 +199,8 @@ jobs:
       - name: Build and Push Reservation Service to GAR
         uses: docker/build-push-action@v5
         with:
-          context: ./services/reservation-service
-          file: ./services/reservation-service/Dockerfile
+          context: . # Build from root context
+          file: ./services/reservation-service/Dockerfile # Path relative to root
           push: true
           tags: |
             ${{ env.GAR_IMAGE_PATH_PREFIX }}/${{ env.IMAGE_RESERVATION_SERVICE }}:${{ env.IMAGE_TAG }}
@@ -247,7 +224,7 @@ jobs:
       - name: Set up Helm
         uses: azure/setup-helm@v3
         with:
-          version: "v3.12.0" # Or latest stable
+          version: 'v3.12.0' # Or latest stable
 
       - name: Get GKE Credentials
         uses: google-github-actions/get-gke-credentials@v2
