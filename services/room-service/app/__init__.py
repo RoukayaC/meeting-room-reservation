@@ -14,16 +14,22 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../s
 # Import models
 from .models import db, Room, RoomType, RoomUnavailability
 
-# Import from shared utils (assuming it exists)
+# Import from shared utils
 try:
-    from opentelemetry_utils import setup_otel, setup_request_hooks
-except ImportError:
-    # Create placeholder functions in case the shared module doesn't exist
+    from shared.opentelemetry_utils import setup_otel, setup_request_hooks
+    from shared.db_utils import ensure_database_exists
+except ImportError as e:
+    logging.warning(f"Could not import shared utilities: {e}. Some features might be limited.")
+    # Define dummy functions if import fails
     def setup_otel(app, service_name):
-        return {"request_counter": None, "error_counter": None}
-    
-    def setup_request_hooks(app, request_counter, error_counter):
+        return {"request_counter": type('obj', (object,), {'add': lambda *args, **kwargs: None})(),
+                "error_counter": type('obj', (object,), {'add': lambda *args, **kwargs: None})()}
+    def setup_request_hooks(app, req_counter, err_counter):
         pass
+    def ensure_database_exists(db_uri, logger):
+        """Dummy function if shared module fails to import"""
+        logger.warning("Using dummy database creation function - shared module failed to import")
+        return True
 
 def create_app(config=None):
     app = Flask(__name__)
@@ -48,6 +54,14 @@ def create_app(config=None):
     if config:
         app.config.update(config)
     
+    # Create database if it doesn't exist
+    target_db_uri = app.config['SQLALCHEMY_DATABASE_URI']
+    app.logger.info(f"Target database URI: {target_db_uri}")
+    if not ensure_database_exists(target_db_uri, app.logger):
+        app.logger.warning("Failed to ensure database exists. Application might not function correctly.")
+        # Uncomment to halt startup on database creation failure
+        # raise RuntimeError("Database could not be verified or created.")
+    
     # Initialize extensions
     CORS(app)
     db.init_app(app)
@@ -68,9 +82,12 @@ def create_app(config=None):
     
     # Setup OpenTelemetry if not in testing mode
     if not config or not config.get('TESTING'):
-        otel_components = setup_otel(app, 'room-service')
-        setup_request_hooks(app, otel_components['request_counter'], otel_components['error_counter'])
-        app.logger.info("OpenTelemetry instrumentation set up")
+        try:
+            otel_components = setup_otel(app, 'room-service')
+            setup_request_hooks(app, otel_components['request_counter'], otel_components['error_counter'])
+            app.logger.info("OpenTelemetry instrumentation set up")
+        except Exception as e:
+            app.logger.warning(f"Failed to setup OpenTelemetry: {str(e)}")
     
     # Create tables if they don't exist (development only)
     with app.app_context():
@@ -154,14 +171,13 @@ def create_app(config=None):
             app.logger.error(f"Kafka consumer error: {str(e)}")
         finally:
             consumer.close()
-    
-    # Start consumer thread if not in testing mode
+      # Start consumer thread if not in testing mode
     if not config or not config.get('TESTING'):
         consumer_thread = threading.Thread(target=start_kafka_consumer, daemon=True)
         consumer_thread.start()
-    
+
     @app.route('/health')
     def health_check():
-        return {'status': 'healthy'}
+        return {'status': 'healthy', 'service': 'room-service'}, 200
     
     return app
