@@ -240,7 +240,7 @@ def create_app(config=None):
         # Start consumer thread
         consumer_thread = threading.Thread(target=start_kafka_consumer, daemon=True)
         consumer_thread.start()
-      @app.route('/health')
+    @app.route('/health')
     def health_check():
         return {'status': 'healthy', 'service': 'reservation-service'}, 200
     
